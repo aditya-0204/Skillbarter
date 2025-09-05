@@ -9,7 +9,7 @@ import ProfileCard from '../components/dashboard/ProfileCard.jsx';
 import ArsenalCard from '../components/dashboard/ArsenalCard.jsx';
 import StatCard from '../components/dashboard/StatCard.jsx';
 // Import the new form component
-import ChangePasswordForm from '../Components/dashboard/ChangePasswordForm.jsx';
+import ChangePasswordForm from '../components/dashboard/ChangePasswordForm.jsx';
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
