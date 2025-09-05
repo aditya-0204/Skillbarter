@@ -1,8 +1,7 @@
-// vite.config.mjs
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: "./",   // ✅ this fixes broken asset paths on Vercel
+  base: "/", // 👈 important for Vercel deployment
 })
