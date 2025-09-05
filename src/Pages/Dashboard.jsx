@@ -7,7 +7,7 @@ import { getUserProfile } from '../services/profileService.js';
 // Import Dashboard Components
 import ProfileCard from '../Components/dashboard/ProfileCard.jsx';
 import ArsenalCard from '../Components/dashboard/ArsenalCard.jsx';
-import StatCard from '../components/dashboard/StatCard.jsx';
+import StatCard from '../Components/dashboard/StatCard.jsx';
 // Import the new form component
 import ChangePasswordForm from '../Components/dashboard/ChangePasswordForm.jsx';
 
