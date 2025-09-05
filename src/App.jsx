@@ -2,16 +2,17 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Navbar from './Components/Navbar.jsx';
 import Footer from './Components/Footer.jsx';
-import ProtectedRoute from './components/ProtectedRoute.jsx';
+import ProtectedRoute from './Components/ProtectedRoute.jsx';
 
 // Import Pages
-import Home from './pages/home.jsx';
-import Login from './pages/login.jsx';
-import Signup from './pages/signup.jsx';
-import Dashboard from './pages/Dashboard.jsx';
-import Browse from './pages/Browse.jsx';
-import Profile from './pages/Profile.jsx';
-import Requests from './pages/Requests.jsx';
+import Home from './Pages/home.jsx';
+import Login from './Pages/login.jsx';
+import Signup from './Pages/signup.jsx';
+import Dashboard from './Pages/Dashboard.jsx';
+import Browse from './Pages/Browse.jsx';
+import Profile from './Pages/Profile.jsx';
+import Requests from './Pages/Requests.jsx';
+
 
 
 function App() {
