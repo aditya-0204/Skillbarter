@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getAllSkills } from '../services/profileService.js';
-import SkillCard from '../Components/SkillCard.jsx';
+import SkillCard from '../components/SkillCard.jsx';
 import SearchBar from '../components/SearchBar.jsx';
 
 export default function Browse() {
