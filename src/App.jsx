@@ -7,7 +7,7 @@ import ProtectedRoute from './Components/ProtectedRoute.jsx';
 // Import Pages
 import Home from './Pages/home.jsx';
 import Login from './Pages/login.jsx';
-import Signup from './Pages/signup.jsx';
+import Signup from './Pages/Signup.jsx';
 import Dashboard from './Pages/Dashboard.jsx';
 import Browse from './Pages/Browse.jsx';
 import Profile from './Pages/Profile.jsx';
