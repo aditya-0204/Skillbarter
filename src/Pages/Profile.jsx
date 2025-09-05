@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { getUserProfile, addUserSkill } from '../services/profileService.js';
 import AddSkillModal from '../components/AddSkillModal.jsx';
-import SkillCard from '../Components/SkillCard.jsx';
+import SkillCard from '../components/SkillCard.jsx';
 
 export default function Profile() {
   const { currentUser } = useAuth();
