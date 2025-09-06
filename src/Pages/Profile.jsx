@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { getUserProfile, addUserSkill } from '../services/profileService.js';
+import { getUserProfile, addUserSkill, deleteUserSkill } from '../services/profileService.js';
 import AddSkillModal from '../components/AddSkillModal.jsx';
 import SkillCard from '../components/SkillCard.jsx';
 
@@ -32,8 +32,16 @@ export default function Profile() {
     }
   };
 
+  const handleDeleteSkill = async (skillToDelete) => {
+    if (currentUser && window.confirm(`Are you sure you want to delete "${skillToDelete.title}"?`)) {
+      await deleteUserSkill(currentUser.uid, skillToDelete);
+      const updatedProfile = await getUserProfile(currentUser.uid);
+      setProfile(updatedProfile);
+    }
+  };
+
   if (loading) return <div className="text-center py-10">Loading...</div>;
-  if (!currentUser) return <div className="text-center py-10">Please log in to view your profile.</div>;
+  if (!currentUser) return <div className="text-center py-10">Please log in.</div>;
   if (!profile) return <div className="text-center py-10">Could not find profile.</div>;
 
   return (
@@ -42,6 +50,7 @@ export default function Profile() {
       <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">Your Skills</h2>
+          {/* --- "ADD NEW SKILL" BUTTON ADDED BACK --- */}
           <button onClick={() => setIsModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg">
             Add New Skill
           </button>
@@ -50,16 +59,21 @@ export default function Profile() {
         {Array.isArray(profile.skills) && profile.skills.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {profile.skills.map((skill, index) => (
-              <SkillCard key={skill.title || index} skill={skill} />
+              <SkillCard 
+                key={skill.publicId || index} 
+                skill={skill} 
+                onDelete={handleDeleteSkill} 
+              />
             ))}
           </div>
         ) : (
           <div className="text-center py-10 border-2 border-dashed rounded-lg">
             <p className="text-gray-500">You haven't added any skills yet.</p>
-            <p className="text-sm text-gray-400 mt-1">Click 'Add New Skill' to get started.</p>
           </div>
         )}
       </div>
+      
+      {/* --- MODAL FOR ADDING SKILLS ADDED BACK --- */}
       <AddSkillModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

@@ -11,9 +11,8 @@ import Signup from './Pages/Signup.jsx';
 import Dashboard from './Pages/Dashboard.jsx';
 import Browse from './Pages/Browse.jsx';
 import Profile from './Pages/Profile.jsx';
-import Requests from './Pages/Requests.jsx';
-
-
+// UPDATED: Importing from the correct file name 'MySwap.jsx'
+import MySwap from './Pages/MySwap.jsx'; 
 
 function App() {
   return (
@@ -30,7 +29,8 @@ function App() {
           {/* Protected Routes */}
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-          <Route path="/requests" element={<ProtectedRoute><Requests /></ProtectedRoute>} />
+          {/* UPDATED: This route now renders your MySwap component correctly */}
+          <Route path="/requests" element={<ProtectedRoute><MySwap /></ProtectedRoute>} />
         </Routes>
       </main>
       <Footer />
