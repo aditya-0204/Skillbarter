@@ -12,6 +12,7 @@ import Dashboard from './Pages/Dashboard.jsx';
 import Browse from './Pages/Browse.jsx';
 import Profile from './Pages/Profile.jsx';
 import MySwap from './Pages/MySwap.jsx'; 
+import ChatPageWrapper from './Pages/ChatPageWrapper.jsx';
 
 function App() {
   return (
@@ -28,8 +29,10 @@ function App() {
           {/* Protected Routes */}
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-          {/* UPDATED: This route now renders your MySwap component correctly */}
           <Route path="/requests" element={<ProtectedRoute><MySwap /></ProtectedRoute>} />
+          
+          {/* Chat Page Route */}
+          <Route path="/chat/:sessionId" element={<ProtectedRoute><ChatPageWrapper /></ProtectedRoute>} />
         </Routes>
       </main>
       <Footer />

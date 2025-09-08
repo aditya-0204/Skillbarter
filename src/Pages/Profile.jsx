@@ -9,13 +9,19 @@ export default function Profile() {
   const [profile, setProfile] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const fetchProfile = async () => {
       if (currentUser) {
         setLoading(true);
+        setError('');
         const userProfile = await getUserProfile(currentUser.uid);
-        setProfile(userProfile);
+        if(userProfile) {
+            setProfile(userProfile);
+        } else {
+            setError('Could not load user profile.');
+        }
         setLoading(false);
       } else {
         setLoading(false);
@@ -40,9 +46,10 @@ export default function Profile() {
     }
   };
 
-  if (loading) return <div className="text-center py-10">Loading...</div>;
-  if (!currentUser) return <div className="text-center py-10">Please log in.</div>;
-  if (!profile) return <div className="text-center py-10">Could not find profile.</div>;
+  if (loading) return <div className="text-center py-10">Loading profile...</div>;
+  if (error) return <div className="text-center py-10 text-red-500">{error}</div>;
+  if (!currentUser) return <div className="text-center py-10">Please log in to view your profile.</div>;
+  if (!profile) return <div className="text-center py-10">Could not find profile data.</div>;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -50,7 +57,6 @@ export default function Profile() {
       <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">Your Skills</h2>
-          {/* --- "ADD NEW SKILL" BUTTON ADDED BACK --- */}
           <button onClick={() => setIsModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg">
             Add New Skill
           </button>
@@ -73,7 +79,6 @@ export default function Profile() {
         )}
       </div>
       
-      {/* --- MODAL FOR ADDING SKILLS ADDED BACK --- */}
       <AddSkillModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

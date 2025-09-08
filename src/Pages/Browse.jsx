@@ -12,8 +12,9 @@ export default function Browse() {
   const [filteredSkills, setFilteredSkills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  // New state to control how many skills are visible
   const [showAll, setShowAll] = useState(false);
+  // New state to track which requests have been sent in this session
+  const [sentRequests, setSentRequests] = useState(new Set());
 
   useEffect(() => {
     const fetchSkills = async () => {
@@ -51,6 +52,10 @@ export default function Browse() {
   const handleSwapRequest = async (receiverId, skill) => {
     if (currentUser) {
       await createSwapRequest(currentUser.uid, receiverId, skill);
+      
+      // Add the skill's ID to the set of sent requests to update the UI
+      setSentRequests(prev => new Set(prev).add(skill.id || skill.publicId));
+
       setMessage(`Swap request sent for "${skill.title}"!`);
       setTimeout(() => setMessage(''), 3000);
     } else {
@@ -71,7 +76,6 @@ export default function Browse() {
         <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">Discover skills from our talented community.</p>
       </div>
       
-      {/* Search Bar is now included */}
       <SearchBar onSearch={handleSearch} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 mt-8">
@@ -80,6 +84,8 @@ export default function Browse() {
             key={skill.id} 
             skill={skill} 
             onSwapRequest={handleSwapRequest} 
+            // Pass down whether a request has been sent for this skill
+            isRequested={sentRequests.has(skill.id || skill.publicId)}
           />
         ))}
       </div>
