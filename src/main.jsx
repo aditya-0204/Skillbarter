@@ -6,10 +6,11 @@ import './index.css';
 import App from './App.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 
+//... other imports
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/Skillbarter">
       <AuthProvider>
         <App />
       </AuthProvider>
