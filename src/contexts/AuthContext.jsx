@@ -1,5 +1,5 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, signInWithCustomToken, signInAnonymously } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { createUserProfile } from '../services/profileService.js';
 
 const AuthContext = createContext();
@@ -27,24 +27,18 @@ export function AuthProvider({ children }) {
     return signOut(auth);
   };
 
+  // --- THIS IS THE CORRECTED PART ---
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    // This listener is called once when Firebase checks the auth state, and again any time it changes.
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      // 'user' will be the user object if they are logged in, or null if they are not.
       setCurrentUser(user);
-      if (!user) {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          try {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } catch (error) {
-            console.error("Custom token sign-in failed, trying anonymous.", error);
-            await signInAnonymously(auth);
-          }
-        } else {
-          // No special token, just set loading to false
-        }
-      }
+      
+      // Crucially, we set loading to false here, allowing the app to render.
       setLoading(false);
     });
 
+    // Clean up the listener when the component unmounts
     return unsubscribe;
   }, [auth]);
 
@@ -52,6 +46,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={value}>
+      {/* This will now correctly render the app once the initial auth check is done */}
       {!loading && children}
     </AuthContext.Provider>
   );
