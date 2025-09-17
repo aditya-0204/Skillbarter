@@ -1,25 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext.jsx';
+// Patched paths to be more robust. Assumes a standard Vite setup where '@' points to the 'src' directory.
 import ChatPage from './ChatPage.jsx';
-import { getAcceptedSwaps } from '../services/profileService.js';
+import { onSessionSnapshot } from '../services/profileService.js';
 
 export default function ChatPageWrapper() {
   const { sessionId } = useParams();
-  const { currentUser } = useAuth();
   const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!currentUser) return;
-    const fetchSession = async () => {
-      const allSwaps = await getAcceptedSwaps(currentUser.uid);
-      const found = allSwaps.find(s => s.id === sessionId);
-      setSession(found);
-    };
-    fetchSession();
-  }, [sessionId, currentUser]);
+    if (!sessionId) {
+      setError('No session ID provided in the URL.');
+      setLoading(false);
+      return;
+    }
+    
+    setLoading(true);
+    // This listener gets the session details (like the other user's name) in real-time.
+    const unsubscribe = onSessionSnapshot(sessionId, (sessionData) => {
+      if (sessionData) {
+        setSession(sessionData);
+      } else {
+        setError('Session not found. It may have been deleted.');
+      }
+      setLoading(false);
+    });
 
-  if (!session) return <p className="text-center py-10">Loading chat...</p>;
+    // Clean up the listener when the component is no longer on screen.
+    return () => unsubscribe();
+  }, [sessionId]);
 
-  return <ChatPage sessionId={sessionId} otherUser={session.otherParty} />;
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen bg-slate-900 text-white"><p>Loading Chat...</p></div>;
+  }
+  
+  if (error) {
+    return <div className="flex items-center justify-center h-screen bg-slate-900 text-red-400"><p>{error}</p></div>;
+  }
+
+  // Once data is loaded, render the actual chat page and pass the details down as props.
+  return <ChatPage session={session} />;
 }
+
