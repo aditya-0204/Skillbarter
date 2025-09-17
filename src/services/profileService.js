@@ -28,7 +28,7 @@ export const getUserProfile = async (userId) => {
     if (docSnap.exists()) return docSnap.data();
 
     const user = auth.currentUser;
-    if (user) {
+    if (user && user.uid === userId) {
       const name = user.displayName || user.email.split('@')[0];
       const newProfile = {
         uid: userId,
@@ -75,43 +75,47 @@ export const getAllSkills = async (currentUserId) => {
   return skillSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };
 
-// --- Swaps ---
-const getProfilesFromSwaps = async (swaps) => {
-  if (swaps.length === 0) return {};
-  const userIds = new Set(swaps.flatMap(s => [s.requesterId, s.receiverId]));
-  const usersRef = collection(db, `/artifacts/${appId}/users`);
-  const q = query(usersRef, where(documentId(), 'in', Array.from(userIds)));
-  const userSnapshot = await getDocs(q);
-  const profiles = {};
-  userSnapshot.forEach(doc => { profiles[doc.id] = doc.data(); });
-  return profiles;
-};
 
+// --- Swaps ---
+
+// This function now saves both users' names when the swap is created.
 export const createSwapRequest = async (requesterId, receiverId, skill) => {
   const swapsCol = collection(db, `/artifacts/${appId}/swaps`);
-  const q = query(swapsCol, 
-    where("requesterId", "==", requesterId), 
-    where("receiverId", "==", receiverId), 
-    where("skillId", "==", skill.id || skill.publicId), 
+  const q = query(swapsCol,
+    where("requesterId", "==", requesterId),
+    where("receiverId", "==", receiverId),
+    where("skillId", "==", skill.id || skill.publicId),
     where("status", "==", "pending"),
     limit(1)
   );
   const existingSwap = await getDocs(q);
-  if (!existingSwap.empty) return;
+  if (!existingSwap.empty) {
+    console.log("A pending request for this skill already exists.");
+    return;
+  }
 
   const requesterProfile = await getUserProfile(requesterId);
+  const receiverProfile = await getUserProfile(receiverId);
+
+  if (!requesterProfile || !receiverProfile) {
+    console.error("Could not find profile for requester or receiver.");
+    return;
+  }
+
   await addDoc(swapsCol, {
     requesterId,
+    requesterName: requesterProfile.name,
+    requesterSkills: requesterProfile.skills || [],
     receiverId,
+    receiverName: receiverProfile.name,
     skillTitle: skill.title,
     skillId: skill.publicId || skill.id,
     status: 'pending',
     createdAt: new Date(),
-    requesterName: requesterProfile.name,
-    requesterSkills: requesterProfile.skills || []
   });
 };
 
+// Fetches pending requests for the current user.
 export const onSwapRequestsSnapshot = (userId, callback) => {
   const swapsCol = collection(db, `/artifacts/${appId}/swaps`);
   const q = query(swapsCol, where("receiverId", "==", userId), where("status", "==", "pending"));
@@ -121,6 +125,7 @@ export const onSwapRequestsSnapshot = (userId, callback) => {
   });
 };
 
+// Updates the status of a swap request (e.g., to 'rejected' or 'accepted').
 export const updateSwapRequestStatus = async (swapId, status) => {
   const swapRef = doc(db, `/artifacts/${appId}/swaps`, swapId);
   await updateDoc(swapRef, { status });
@@ -128,37 +133,70 @@ export const updateSwapRequestStatus = async (swapId, status) => {
 
 export const acceptSwapRequest = async (swapId, skillOfferedByReceiver) => {
   const swapRef = doc(db, `/artifacts/${appId}/swaps`, swapId);
-  const swapSnap = await getDoc(swapRef);
-  if (!swapSnap.exists()) throw new Error("Swap not found");
-
-  const swapData = swapSnap.data();
   await updateDoc(swapRef, {
     status: 'accepted',
     skillOfferedByReceiver,
     acceptedAt: new Date()
   });
+};
 
-  return {
-    id: swapSnap.id,
-    skillTitle: swapData.skillTitle,
-    otherParty: { name: swapData.requesterName },
-    createdAt: swapData.createdAt || { toDate: () => new Date() }
+// This function efficiently reads the other user's name directly from the swap document.
+export const onAcceptedSwapsSnapshot = (userId, callback) => {
+  if (!userId) return () => { };
+
+  const swapsCol = collection(db, `/artifacts/${appId}/swaps`);
+  const sessionsMap = new Map();
+
+  const processChanges = (snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      const docData = { id: change.doc.id, ...change.doc.data() };
+
+      if (change.type === "removed") {
+        sessionsMap.delete(docData.id);
+      } else {
+        const isRequester = docData.requesterId === userId;
+        docData.otherParty = {
+          name: isRequester ? docData.receiverName : docData.requesterName,
+          id: isRequester ? docData.receiverId : docData.requesterId
+        };
+        sessionsMap.set(docData.id, docData);
+      }
+    });
+    callback(Array.from(sessionsMap.values()));
+  };
+  
+  const q1 = query(swapsCol, where("requesterId", "==", userId), where("status", "==", "accepted"));
+  const q2 = query(swapsCol, where("receiverId", "==", userId), where("status", "==", "accepted"));
+
+  const unsub1 = onSnapshot(q1, processChanges);
+  const unsub2 = onSnapshot(q2, processChanges);
+
+  return () => {
+    unsub1();
+    unsub2();
   };
 };
 
-export const getAcceptedSwaps = async (userId) => {
-  if (!userId) return [];
-  const swapsCol = collection(db, `/artifacts/${appId}/swaps`);
-  const q1 = query(swapsCol, where("requesterId", "==", userId), where("status", "==", "accepted"));
-  const q2 = query(swapsCol, where("receiverId", "==", userId), where("status", "==", "accepted"));
-  const [requesterSnapshot, receiverSnapshot] = await Promise.all([getDocs(q1), getDocs(q2)]);
-  const acceptedSwaps = [
-      ...requesterSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-      ...receiverSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-  ];
-  const profiles = await getProfilesFromSwaps(acceptedSwaps);
-  return acceptedSwaps.map(swap => {
-      const otherPartyId = swap.requesterId === userId ? swap.receiverId : swap.requesterId;
-      return { ...swap, otherParty: profiles[otherPartyId] || { name: 'Unknown User' } };
+// FINAL FIX: This listener for the chat page now also reads the names directly from the document.
+export const onSessionSnapshot = (sessionId, callback) => {
+  if (!sessionId) return () => {};
+  
+  const swapRef = doc(db, `/artifacts/${appId}/swaps`, sessionId);
+  const currentUserId = auth.currentUser?.uid;
+
+  return onSnapshot(swapRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const sessionData = docSnap.data();
+      const isRequester = sessionData.requesterId === currentUserId;
+      // Construct the 'otherParty' object from data already in the document
+      sessionData.otherParty = {
+        name: isRequester ? sessionData.receiverName : sessionData.requesterName,
+        id: isRequester ? sessionData.receiverId : sessionData.requesterId
+      };
+      callback({ id: docSnap.id, ...sessionData });
+    } else {
+      console.error("Session not found!");
+      callback(null);
+    }
   });
 };
