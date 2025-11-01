@@ -11,38 +11,66 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (currentUser) {
-        setLoading(true);
-        setError('');
-        const userProfile = await getUserProfile(currentUser.uid);
-        if(userProfile) {
-            setProfile(userProfile);
-        } else {
-            setError('Could not load user profile.');
-        }
-        setLoading(false);
+  // This function is to fetch the profile.
+  const fetchProfile = async () => {
+    if (currentUser) {
+      setLoading(true);
+      setError('');
+      const userProfile = await getUserProfile(currentUser.uid);
+      if (userProfile) {
+        setProfile(userProfile);
       } else {
-        setLoading(false);
+        setError('Could not load user profile.');
       }
-    };
+      setLoading(false);
+    } else {
+      setLoading(false);
+    }
+  };
+
+  // Load profile on mount
+  useEffect(() => {
     fetchProfile();
   }, [currentUser]);
 
   const handleAddSkill = async (newSkill) => {
     if (currentUser) {
-      await addUserSkill(currentUser.uid, newSkill);
-      const updatedProfile = await getUserProfile(currentUser.uid);
-      setProfile(updatedProfile);
+      try {
+        // 1. Add to database
+        await addUserSkill(currentUser.uid, newSkill);
+        
+        // 2. Wait 800ms for the database to update (your original, smart idea)
+        setTimeout(async () => {
+          // 3. Refetch the *entire* profile to get the new list
+          const updatedProfile = await getUserProfile(currentUser.uid);
+          setProfile(updatedProfile);
+        }, 800); // Using 800ms as it was in your original code
+        
+        setIsModalOpen(false);
+      } catch (err) {
+        console.error("Error adding skill:", err);
+        setError("Failed to add skill.");
+      }
     }
   };
 
   const handleDeleteSkill = async (skillToDelete) => {
     if (currentUser && window.confirm(`Are you sure you want to delete "${skillToDelete.title}"?`)) {
-      await deleteUserSkill(currentUser.uid, skillToDelete);
-      const updatedProfile = await getUserProfile(currentUser.uid);
-      setProfile(updatedProfile);
+      try {
+        // 1. Delete from database
+        await deleteUserSkill(currentUser.uid, skillToDelete);
+        
+        // 2. Wait for database to update
+        setTimeout(async () => {
+          // 3. Refetch the entire profile
+          const updatedProfile = await getUserProfile(currentUser.uid);
+          setProfile(updatedProfile);
+        }, 800);
+
+      } catch (err) {
+        console.error("Error deleting skill:", err);
+        setError("Failed to delete skill.");
+      }
     }
   };
 
@@ -50,6 +78,11 @@ export default function Profile() {
   if (error) return <div className="text-center py-10 text-red-500">{error}</div>;
   if (!currentUser) return <div className="text-center py-10">Please log in to view your profile.</div>;
   if (!profile) return <div className="text-center py-10">Could not find profile data.</div>;
+
+  // Filter the skills to only include ones that have a publicId
+  const validSkills = Array.isArray(profile.skills) 
+    ? profile.skills.filter(skill => skill && skill.publicId) 
+    : [];
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -62,13 +95,13 @@ export default function Profile() {
           </button>
         </div>
 
-        {Array.isArray(profile.skills) && profile.skills.length > 0 ? (
+        {validSkills.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {profile.skills.map((skill, index) => (
-              <SkillCard 
-                key={skill.publicId || index} 
-                skill={skill} 
-                onDelete={handleDeleteSkill} 
+            {validSkills.map((skill) => (
+              <SkillCard
+                key={skill.publicId} // Now this is safe
+                skill={skill}
+                onDelete={handleDeleteSkill}
               />
             ))}
           </div>
@@ -78,7 +111,7 @@ export default function Profile() {
           </div>
         )}
       </div>
-      
+
       <AddSkillModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

@@ -13,6 +13,10 @@ import Browse from './Pages/Browse.jsx';
 import Profile from './Pages/Profile.jsx';
 import MySwap from './Pages/MySwap.jsx'; 
 import ChatPageWrapper from './Pages/ChatPageWrapper.jsx';
+import FileUpload from './components/FileUpload.jsx';
+// 1. Import the new Shop page
+import Shop from './Pages/Shop.jsx';
+console.log("✅ App mounted");
 
 function App() {
   return (
@@ -30,6 +34,12 @@ function App() {
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/requests" element={<ProtectedRoute><MySwap /></ProtectedRoute>} />
+          
+          {/* --- ADD THIS NEW ROUTE FOR YOUR UPLOAD PAGE --- */}
+          <Route path="/upload" element={<ProtectedRoute><FileUpload /></ProtectedRoute>} />
+
+          {/* 2. Add the new route for the Shop */}
+          <Route path="/shop" element={<ProtectedRoute><Shop /></ProtectedRoute>} />
           
           {/* Chat Page Route */}
           <Route path="/chat/:sessionId" element={<ProtectedRoute><ChatPageWrapper /></ProtectedRoute>} />

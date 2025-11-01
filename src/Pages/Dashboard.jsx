@@ -26,7 +26,7 @@ export default function Dashboard() {
         try {
           setLoading(true);
           setError(null);
-          const userProfile = await getUserProfile(currentUser.uid);
+          const userProfile = await getUserProfile(currentUser.uid,currentUser);
           setProfile(userProfile);
         } catch (err) {
           console.error("Failed to fetch profile:", err);
@@ -59,6 +59,8 @@ export default function Dashboard() {
   }
   
   if (!profile) {
+    console.log("Profile data:", profile);
+
     return <div className="text-center py-10">Loading user data...</div>;
   }
 

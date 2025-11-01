@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { onSwapRequestsSnapshot } from '../services/profileService.js';
+import { useCoins } from '../store/coinStore.jsx'; 
 
 export default function Navbar() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const [requestCount, setRequestCount] = useState(0);
+  const { coins, loading } = useCoins();
 
   useEffect(() => {
     if (currentUser) {
@@ -16,7 +18,6 @@ export default function Navbar() {
       return () => unsubscribe();
     }
   }, [currentUser]);
-
 
   const handleLogout = async () => {
     try {
@@ -36,7 +37,6 @@ export default function Navbar() {
     <nav className="bg-slate-800 dark:bg-slate-900 shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* CORRECTED: Added the missing to="/" prop to this NavLink */}
           <NavLink to="/" className="font-bold text-2xl text-white">SkillSwap</NavLink>
           
           <div className="flex items-center space-x-4">
@@ -53,6 +53,20 @@ export default function Navbar() {
                   )}
                 </NavLink>
                 <NavLink to="/profile" className={linkClass}>Skillset</NavLink>
+                
+                {/* Add the new NavLink to the Shop here */}
+                <NavLink to="/shop" className={linkClass}>Shop</NavLink>
+                
+                <div className="flex items-center bg-slate-700 px-3 py-2 rounded-md text-sm font-medium text-white">
+                  {loading ? (
+                    '...'
+                  ) : (
+                    <>
+                      {coins} 🪙
+                    </>
+                  )}
+                </div>
+
                 <button onClick={handleLogout} className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md text-sm font-medium">
                   Logout
                 </button>

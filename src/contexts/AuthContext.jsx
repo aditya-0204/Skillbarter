@@ -1,53 +1,85 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { createUserProfile } from '../services/profileService.js';
+import React, { useState, useEffect, createContext, useContext } from "react";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  signInWithPopup,
+} from "firebase/auth";
+import { googleProvider } from "../firebase";
+import { createUserProfile } from "../services/profileService.js";
+import { createUserIfNotExist } from "../services/sessionService.js";
 
+// Create context
 const AuthContext = createContext();
 
-export function useAuth() {
-  return useContext(AuthContext);
-}
-
-export function AuthProvider({ children }) {
+// AuthProvider component
+const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const auth = getAuth();
 
+  // ✅ Signup
   const signup = async (email, password) => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
     await createUserProfile(userCredential.user);
     return userCredential;
   };
 
-  const login = (email, password) => {
-    return signInWithEmailAndPassword(auth, email, password);
+  // ✅ Login
+  const login = (email, password) =>
+    signInWithEmailAndPassword(auth, email, password);
+
+  // ✅ Google login/signup
+  const loginWithGoogle = async () => {
+    const result = await signInWithPopup(auth, googleProvider);
+    const user = result.user;
+
+    await createUserIfNotExist(user);
+    await createUserProfile(user);
+    return result;
   };
 
-  const logout = () => {
-    return signOut(auth);
-  };
+  // ✅ Logout
+  const logout = () => signOut(auth);
 
-  // --- THIS IS THE CORRECTED PART ---
-  useEffect(() => {
-    // This listener is called once when Firebase checks the auth state, and again any time it changes.
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // 'user' will be the user object if they are logged in, or null if they are not.
-      setCurrentUser(user);
-      
-      // Crucially, we set loading to false here, allowing the app to render.
-      setLoading(false);
-    });
+  // ✅ Monitor auth state
+ useEffect(() => {
+  console.log("👤 AuthContext mounted");
 
-    // Clean up the listener when the component unmounts
-    return unsubscribe;
-  }, [auth]);
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    console.log("🔁 Auth state changed:", user);
+    if (user) {
+      try {
+        await createUserIfNotExist(user);
+        console.log("✅ User ensured in Firestore");
+      } catch (err) {
+        console.error("❌ Error creating user:", err);
+      }
+    }
+    setCurrentUser(user);
+    setLoading(false);
+  });
 
-  const value = { currentUser, signup, login, logout };
+  return unsubscribe;
+}, [auth]);
+
+
+  const value = { currentUser, signup, login, loginWithGoogle, logout };
 
   return (
     <AuthContext.Provider value={value}>
-      {/* This will now correctly render the app once the initial auth check is done */}
       {!loading && children}
     </AuthContext.Provider>
   );
-}
+};
+
+// ✅ define hook *after* component to avoid HMR mismatch
+const useAuth = () => useContext(AuthContext);
+
+export { AuthProvider, useAuth };

@@ -1,86 +1,285 @@
+// src/services/profileService.js
+
+// src/services/profileService.js
+
 import { db, auth } from '../firebase';
 import {
   doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, deleteDoc,
-  collection, addDoc, query, where, getDocs, onSnapshot, documentId, limit
+  collection, addDoc, query, where, getDocs, onSnapshot, documentId, limit, serverTimestamp
 } from 'firebase/firestore';
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+console.log("🔥 Active App ID:", appId);
 
-// --- User Profile ---
-export const createUserProfile = async (user, name) => {
-  const userRef = doc(db, `/artifacts/${appId}/users`, user.uid);
-  const userProfile = {
+// 🔹 COLLECTION REFS
+const swapsCol = collection(db, `artifacts/${appId}/swaps`);
+const privateUsersCol = `artifacts/${appId}/users`;
+const publicUsersCol = `artifacts/${appId}/public/data/users`;
+
+// --- 🧩 CREATE USER PROFILE (FIXED) ---
+export async function createUserProfile(user) {
+  if (!user) return;
+
+  const userRef = doc(db, `${privateUsersCol}/${user.uid}`);
+  const docSnap = await getDoc(userRef);
+
+  const profileData = {
     uid: user.uid,
-    email: user.email,
-    name: name,
-    avatar: `https://placehold.co/100x100/e2e8f0/333?text=${name[0].toUpperCase()}`,
-    skills: []
+    name: user.displayName || "New User",
+    email: user.email || "",
+    photoURL: user.photoURL || "",
+    skills: [],
+    stats: { swapsCompleted: 0 },
+    createdAt: new Date().toISOString(),
   };
-  await setDoc(userRef, userProfile);
+
+  if (!docSnap.exists()) {
+    await setDoc(userRef, profileData);
+    console.log("✅ Private profile created:", profileData);
+  }
+
+  // Public doc path: artifacts/{appId}/public/users/{uid}
+  const publicUserRef = doc(db, `artifacts/${appId}/public/data/users/${user.uid}`);
+  const avatarUrl =
+    user.photoURL ||
+    profileData.photoURL ||
+    `https://placehold.co/100x100/e2e8f0/333?text=${(profileData.name?.charAt(0).toUpperCase() || "?")}`;
+
+  await setDoc(
+    publicUserRef,
+    {
+      name: profileData.name,
+      avatar: avatarUrl,
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true }
+  );
+
+  console.log("✅ Public user updated with avatar:", avatarUrl);
+}
+
+// --- THIS FUNCTION IS CORRECTED ---
+export const getUserProfile = async (userId, user = null) => {
+  const effectiveUid = user?.uid || userId;
+  if (!effectiveUid) {
+    console.error("❌ getUserProfile: No valid user ID found");
+    return null;
+  }
+
+  // --- 1. Set up Defaults ---
+  // Use 'user' object if provided, otherwise create generic defaults
+  const defaultName = user?.displayName || user?.email?.split('@')[0] || 'SkillSwap User';
+  const defaultAvatar =
+    user?.photoURL ||
+    `https://placehold.co/100x100/e2e8f0/333?text=${(
+      defaultName === 'SkillSwap User' ? '?' : defaultName[0].toUpperCase()
+    )}`;
+
+  const defaultProfileShape = {
+    skills: [],
+    stats: { swapsCompleted: 0 },
+    name: defaultName,
+    avatar: defaultAvatar,
+    uid: effectiveUid,
+  };
+
+  try {
+    let userRef;
+    let docSnap;
+    
+    // --- 2. Determine Read Type (Private vs Public) ---
+
+    if (auth.currentUser?.uid === effectiveUid) {
+      // --- PRIVATE READ (Fetching your own profile) ---
+      userRef = doc(db, `artifacts/${appId}/users/${effectiveUid}`);
+      docSnap = await getDoc(userRef);
+
+      // 🟡 MIGRATE: Only run when fetching your own profile
+      if (!docSnap.exists()) {
+        const oldRef = doc(db, "users", effectiveUid);
+        const oldSnap = await getDoc(oldRef); // This is ALLOWED by rules
+
+        if (oldSnap.exists()) {
+          console.log(`ℹ️ Migrating OWN profile for ${effectiveUid}...`);
+          const oldData = oldSnap.data();
+          const avatar = oldData.photoURL || defaultAvatar;
+
+          const migratedData = {
+            ...defaultProfileShape,
+            ...oldData,
+            name: oldData.name || defaultName,
+            avatar: avatar,
+            photoURL: null,
+            stats: { ...defaultProfileShape.stats, ...(oldData.stats || {}) },
+            uid: effectiveUid,
+            email: oldData.email || user?.email,
+            createdAt: oldData.createdAt || new Date().toISOString()
+          };
+          
+          // Write to new private path
+          await setDoc(userRef, migratedData);
+          
+          // Write to new public path
+          const publicUserRef = doc(db, `artifacts/${appId}/public/data/users/${effectiveUid}`);
+          await setDoc(publicUserRef, {
+              name: migratedData.name,
+              avatar: migratedData.avatar,
+              updatedAt: new Date().toISOString()
+          });
+
+          await deleteDoc(oldRef); // Delete old doc
+          docSnap = await getDoc(userRef); // Re-fetch
+        }
+      }
+    } else {
+      // --- PUBLIC READ (Fetching someone else's profile) ---
+      userRef = doc(db, `artifacts/${appId}/public/data/users/${effectiveUid}`);
+      docSnap = await getDoc(userRef);
+      // ❌ We explicitly DO NOT check the old `users/` path.
+      // This prevents the permission error.
+    }
+
+    // --- 3. Process the result ---
+
+    if (docSnap.exists()) {
+  const data = docSnap.data();
+  return {
+    ...defaultProfileShape,
+    ...data,
+    stats: { ...defaultProfileShape.stats, ...(data.stats || {}) },
+    avatar:
+      (data.avatar && data.avatar.startsWith("http"))
+        ? data.avatar
+        : (data.photoURL || defaultProfileShape.avatar)
+  };
+}
+
+
+    // --- 4. Handle creation or public default ---
+    
+    // If it was a PRIVATE read, and no doc existed, CREATE one.
+    if (auth.currentUser?.uid === effectiveUid) {
+      console.log(`Creating new profile for ${effectiveUid}...`);
+      const newProfile = {
+        ...defaultProfileShape, // Uses smart defaults from auth
+        uid: effectiveUid,
+        email: user.email,
+        createdAt: new Date().toISOString(),
+      };
+      
+      // Write private doc
+      await setDoc(doc(db, `artifacts/${appId}/users/${effectiveUid}`), newProfile);
+      
+      // Write public doc
+      const publicUserRef = doc(db, `artifacts/${appId}/public/data/users/${effectiveUid}`);
+      await setDoc(publicUserRef, {
+        name: newProfile.name,
+        avatar: newProfile.avatar,
+        updatedAt: new Date().toISOString()
+      });
+      
+      return newProfile;
+    }
+
+    // If it was a PUBLIC read, and no doc existed, return the default.
+    console.warn(`No public profile found for ${effectiveUid}. Returning default.`);
+    return defaultProfileShape; // This has "SkillSwap User" and "?"
+
+  } catch (error) {
+    console.error(`Error in getUserProfile for ${effectiveUid}:`, error);
+    return {
+      ...defaultProfileShape,
+      name: "Error User", // So you can see the error
+    };
+  }
 };
+// --- (Rest of profileService.js) ---
 
-export const getUserProfile = async (userId) => {
-  if (!userId) return null;
-  const userRef = doc(db, `/artifacts/${appId}/users`, userId);
 
-  try {
-    const docSnap = await getDoc(userRef);
-    if (docSnap.exists()) return docSnap.data();
 
-    const user = auth.currentUser;
-    if (user && user.uid === userId) {
-      const name = user.displayName || user.email.split('@')[0];
-      const newProfile = {
-        uid: userId,
-        email: user.email,
-        name,
-        avatar: `https://placehold.co/100x100/e2e8f0/333?text=${name[0].toUpperCase()}`,
-        skills: []
-      };
-      await setDoc(userRef, newProfile);
-      return newProfile;
-    }
-    return null;
-  } catch (error) {
-    console.error("Error fetching or creating user profile:", error);
-    return null;
+// --- Skills (No Changes Below This Line) ---
+export const addUserSkill = async (userId, skill) => {
+  if (!userId || !skill) return;
+
+  const userRef = doc(db, `artifacts/${appId}/users/${userId}`);
+  const userSnap = await getDoc(userRef);
+  const userData = userSnap.exists() ? userSnap.data() : null;
+
+  // ✅ Step 1: Create the public skill first (so we have its ID)
+  const publicSkillsCol = collection(db, `artifacts/${appId}/public/data/skills`);
+  const publicDocRef = await addDoc(publicSkillsCol, {
+    ...skill,
+    userId,
+    createdAt: new Date(),
+  });
+
+  const skillWithId = { ...skill, publicId: publicDocRef.id };
+
+  // ✅ Step 2: Add *only once* to the user's skill array
+  if (!userData) {
+    await setDoc(userRef, { skills: [skillWithId] }, { merge: true });
+  } else {
+    await updateDoc(userRef, { skills: arrayUnion(skillWithId) });
   }
 };
 
-// --- Skills ---
-export const addUserSkill = async (userId, skill) => {
-  if (!userId || !skill) return;
-  const userRef = doc(db, `/artifacts/${appId}/users`, userId);
-  const profile = await getUserProfile(userId);
-  const publicSkillsCol = collection(db, `/artifacts/${appId}/public/data/skills`);
-  const publicDocRef = await addDoc(publicSkillsCol, { ...skill, userId, userName: profile.name, userAvatar: profile.avatar, createdAt: new Date() });
-  await updateDoc(userRef, { skills: arrayUnion({ ...skill, publicId: publicDocRef.id }) });
-};
 
 export const deleteUserSkill = async (userId, skillToDelete) => {
   if (!userId || !skillToDelete) return;
-  const userRef = doc(db, `/artifacts/${appId}/users`, userId);
+  const userRef = doc(db, `artifacts/${appId}/users`, userId);
   await updateDoc(userRef, { skills: arrayRemove(skillToDelete) });
   if (skillToDelete.publicId) {
-    const publicDocRef = doc(db, `/artifacts/${appId}/public/data/skills`, skillToDelete.publicId);
+    const publicDocRef = doc(db, `artifacts/${appId}/public/data/skills`, skillToDelete.publicId);
     await deleteDoc(publicDocRef);
   }
 };
 
+// ... (appId and other functions are above this)
+
 export const getAllSkills = async (currentUserId) => {
-  if (!currentUserId) return [];
-  const skillsCol = collection(db, `/artifacts/${appId}/public/data/skills`);
-  const q = query(skillsCol, where("userId", "!=", currentUserId));
-  const skillSnapshot = await getDocs(q);
-  return skillSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  try {
+    // ✅ Uses the global appId
+    const skillsRef = collection(db, `artifacts/${appId}/public/data/skills`);
+    const skillsSnap = await getDocs(skillsRef);
+
+    const allSkills = await Promise.all(
+      skillsSnap.docs.map(async (docSnap) => {
+        const skillData = docSnap.data();
+
+        // skip your own skills
+        if (skillData.userId === currentUserId) return null;
+
+        // ⬇️ --- THIS IS THE FIX --- ⬇️
+        // Instead of a simple getDoc, we use getUserProfile.
+        // This will read the public profile AND run your migration
+        // logic if the public profile is missing but an old one exists.
+        const userData = await getUserProfile(skillData.userId);
+        // ⬆️ --- END OF FIX --- ⬆️
+
+        return {
+          id: docSnap.id,
+          ...skillData,
+          // Read from the profile returned by getUserProfile
+          userName: userData?.name || "SkillSwap User",
+          userAvatar: userData?.avatar || null, // PublicSkillCard will handle the '?'
+        };
+      })
+    );
+
+    return allSkills.filter(Boolean);
+  } catch (error) {
+    console.error("Error fetching skills:", error);
+    return [];
+  }
 };
+
+
 
 
 // --- Swaps ---
 
-// This function now saves both users' names when the swap is created.
 export const createSwapRequest = async (requesterId, receiverId, skill) => {
-  const swapsCol = collection(db, `/artifacts/${appId}/swaps`);
+  const swapsCol = collection(db, `artifacts/${appId}/swaps`);
   const q = query(swapsCol,
     where("requesterId", "==", requesterId),
     where("receiverId", "==", receiverId),
@@ -94,7 +293,7 @@ export const createSwapRequest = async (requesterId, receiverId, skill) => {
     return;
   }
 
-  const requesterProfile = await getUserProfile(requesterId);
+  const requesterProfile = await getUserProfile(requesterId, auth.currentUser); // Pass user
   const receiverProfile = await getUserProfile(receiverId);
 
   if (!requesterProfile || !receiverProfile) {
@@ -115,9 +314,8 @@ export const createSwapRequest = async (requesterId, receiverId, skill) => {
   });
 };
 
-// Fetches pending requests for the current user.
 export const onSwapRequestsSnapshot = (userId, callback) => {
-  const swapsCol = collection(db, `/artifacts/${appId}/swaps`);
+  const swapsCol = collection(db, `artifacts/${appId}/swaps`);
   const q = query(swapsCol, where("receiverId", "==", userId), where("status", "==", "pending"));
   return onSnapshot(q, (snapshot) => {
     const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -125,14 +323,16 @@ export const onSwapRequestsSnapshot = (userId, callback) => {
   });
 };
 
-// Updates the status of a swap request (e.g., to 'rejected' or 'accepted').
 export const updateSwapRequestStatus = async (swapId, status) => {
-  const swapRef = doc(db, `/artifacts/${appId}/swaps`, swapId);
-  await updateDoc(swapRef, { status });
+  const swapRef = doc(db, `artifacts/${appId}/swaps`, swapId);
+  await updateDoc(swapRef, { 
+    status: status,
+    updatedAt: serverTimestamp() // <-- ADD THIS
+  });
 };
 
 export const acceptSwapRequest = async (swapId, skillOfferedByReceiver) => {
-  const swapRef = doc(db, `/artifacts/${appId}/swaps`, swapId);
+  const swapRef = doc(db, `artifacts/${appId}/swaps`, swapId);
   await updateDoc(swapRef, {
     status: 'accepted',
     skillOfferedByReceiver,
@@ -140,11 +340,10 @@ export const acceptSwapRequest = async (swapId, skillOfferedByReceiver) => {
   });
 };
 
-// This function efficiently reads the other user's name directly from the swap document.
 export const onAcceptedSwapsSnapshot = (userId, callback) => {
   if (!userId) return () => { };
 
-  const swapsCol = collection(db, `/artifacts/${appId}/swaps`);
+  const swapsCol = collection(db, `artifacts/${appId}/swaps`);
   const sessionsMap = new Map();
 
   const processChanges = (snapshot) => {
@@ -177,18 +376,16 @@ export const onAcceptedSwapsSnapshot = (userId, callback) => {
   };
 };
 
-// FINAL FIX: This listener for the chat page now also reads the names directly from the document.
 export const onSessionSnapshot = (sessionId, callback) => {
   if (!sessionId) return () => {};
   
-  const swapRef = doc(db, `/artifacts/${appId}/swaps`, sessionId);
+  const swapRef = doc(db, `artifacts/${appId}/swaps`, sessionId);
   const currentUserId = auth.currentUser?.uid;
 
   return onSnapshot(swapRef, (docSnap) => {
     if (docSnap.exists()) {
       const sessionData = docSnap.data();
       const isRequester = sessionData.requesterId === currentUserId;
-      // Construct the 'otherParty' object from data already in the document
       sessionData.otherParty = {
         name: isRequester ? sessionData.receiverName : sessionData.requesterName,
         id: isRequester ? sessionData.receiverId : sessionData.requesterId
@@ -199,4 +396,73 @@ export const onSessionSnapshot = (sessionId, callback) => {
       callback(null);
     }
   });
+};
+
+//session completion 
+
+
+// ... function onSessionSnapshot is right above this ...
+
+export const onCompletedSwapsSnapshot = (userId, callback) => {
+  if (!userId) return () => { };
+
+  // Use a Map to store and manage the sessions
+  const sessionsMap = new Map();
+
+  // Helper function to process changes from both queries
+  const processChanges = (snapshot) => {
+    snapshot.docChanges().forEach(async (change) => {
+      const docData = { id: change.doc.id, ...change.doc.data() };
+
+      if (change.type === "removed") {
+        sessionsMap.delete(docData.id);
+      } else {
+        // This logic is the same as onAcceptedSwapsSnapshot
+        const isRequester = docData.requesterId === userId;
+        const otherPartyId = isRequester ? docData.receiverId : docData.requesterId;
+        
+        // --- FIX: Use getUserProfile to get the correct user data ---
+        const otherPartyProfile = await getUserProfile(otherPartyId);
+        
+        docData.otherParty = {
+          name: otherPartyProfile?.name || 'Unknown User',
+          avatar: otherPartyProfile?.avatar, // We get the avatar now
+          id: otherPartyId
+        };
+        // -----------------------------------------------------------
+        
+        sessionsMap.set(docData.id, docData);
+      }
+      
+      // Update the state with the new array of values
+      callback(Array.from(sessionsMap.values()));
+    });
+    
+    // Handle initial load (in case docChanges is not enough for all scenarios)
+    const allDocs = snapshot.docs.map(doc => sessionsMap.get(doc.id)).filter(Boolean);
+    callback(allDocs);
+  };
+  
+  // Query 1: Where the current user was the REQUIESTER
+  const q1 = query(
+    swapsCol, // <-- Uses the variable we defined at the top
+    where("requesterId", "==", userId), 
+    where("status", "==", "completed")
+  );
+  
+  // Query 2: Where the current user was the RECEIVER
+  const q2 = query(
+    swapsCol, // <-- Uses the variable we defined at the top
+    where("receiverId", "==", userId), 
+    where("status", "==", "completed")
+  );
+
+  const unsub1 = onSnapshot(q1, processChanges);
+  const unsub2 = onSnapshot(q2, processChanges);
+
+  // Return a function that unsubscribes from both listeners
+  return () => {
+    unsub1();
+    unsub2();
+  };
 };
