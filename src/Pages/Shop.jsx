@@ -10,31 +10,39 @@ const shopItems = [
     price: 1200,
     description: "Comfortable cotton T-shirt with SkillSwap branding.",
     image:
-      "https://drive.google.com/file/d/1Z_zUIq4zvLCPvSYsqj8nXAfsL4PLicrz/view?usp=sharing",
+      "public/images/t-shirt.jpg",
   },
   {
     id: 2,
-    name: "Mouse Pad",
-    price: 950,
-    description: "Smooth surface for precise mouse movements.",
+    name: "classic black skillswap t-shirt",
+    price: 1200,
+    description: "Soft and comfortable T-shirt.",
     image:
-      "https://images.unsplash.com/photo-1589381002778-6848b94cf3d6?auto=format&fit=crop&w=400&q=80",
+      "public/images/black-t-shirt.jpg",
   },
   {
     id: 3,
-    name: "Bluetooth Headphones",
-    price: 2000,
-    description: "Noise-cancelling over-ear headphones with deep bass.",
+    name: "water bottle",
+    price: 800,
+    description: "Stay hydrated on the go with this stylish water bottle.",
     image:
-      "https://images.unsplash.com/photo-1518443895911-78e3d7d1eacc?auto=format&fit=crop&w=400&q=80",
+      "public/images/water-bottle.jpg",
   },
   {
     id: 4,
-    name: "Smart Fitness Band",
-    price: 2800,
-    description: "Track your steps, heart rate, and sleep patterns.",
+    name: "SkillSwap Hoodie",
+    price: 2000,
+    description: "Stay warm and stylish with this cozy hoodie.",
     image:
-      "https://images.unsplash.com/photo-1606112219348-204d7d8b94ee?auto=format&fit=crop&w=400&q=80",
+      "public/images/hoodie.jpg",
+  },
+  {
+    id: 5,
+    name: "SkillSwap Hoodie ( classic black)",
+    price: 2000,
+    description: "Stay warm and stylish with this cozy hoodie.",
+    image:
+      "public/images/hoddie-black.jpg",
   },
 ];
 
@@ -68,7 +76,7 @@ export default function Shop() {
       </h1>
       <p className="mb-8 text-center text-gray-700">
         Your Balance:{" "}
-        <span className="font-bold text-yellow-400">{coins} 🪙</span>
+        <span className="font-bold text-black">{coins} 🪙</span>
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -77,11 +85,14 @@ export default function Shop() {
             key={item.id}
             className="bg-slate-900 rounded-2xl shadow-lg hover:shadow-2xl transition-shadow border border-slate-700 overflow-hidden"
           >
+            <div className="bg-white p-4">
+
             <img
               src={item.image}
               alt={item.name}
-              className="w-full h-48 object-cover hover:scale-105 transition-transform duration-300"
-            />
+              className="w-[70%] h-56 object-cover mx-auto rounded-t-lg hover:scale-105 transition-transform duration-300"
+              />
+              </div>
             <div className="p-5">
               <h2 className="text-xl font-bold text-white">{item.name}</h2>
               <p className="text-gray-400 text-sm mt-1">{item.description}</p>
