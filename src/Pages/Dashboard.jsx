@@ -83,7 +83,6 @@ export default function Dashboard() {
   const displayName = profile?.displayName || profile?.name || "User";
 const skillsCount = profile?.skills?.length ?? 0;
 const swapsCompleted =
-profile?.stats?.swapsCompleted ??
 profile?.swapCount ??
 0;
 

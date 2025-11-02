@@ -143,7 +143,7 @@ app.post('/confirmEndSession', async (req, res) => {
         userRef,
         {
           coins: admin.firestore.FieldValue.increment(25),
-          swapCount: admin.firestore.FieldValue.increment(1),
+           "stats.swapsCompleted": admin.firestore.FieldValue.increment(1),
         },
         { merge: true }
       );
