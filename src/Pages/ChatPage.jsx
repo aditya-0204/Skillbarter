@@ -277,14 +277,25 @@ export default function ChatPage({ session }) {
     initSession();
   }, [sessionId, currentUser, otherUser, fetchCurrentUser]);
 
-  const handleRequestEndSession = async () => {
-    if (!window.confirm("Request to end this session?")) return;
-    try {
-      await requestEndSession(sessionId, currentUser.uid);
-    } catch (err) {
-      alert(`Error requesting end: ${err.message}`);
-    }
-  };
+  // ChatPage.jsx (replace handleRequestEndSession)
+const handleEndSessionClicked = async () => {
+  // optional: confirm with the user before ending
+  if (!window.confirm("Do you want to end this session now? Both users will receive coins once the other confirms.")) return;
+
+  try {
+    setIsEnding(true);
+    // call server with *only* the current user's id
+    await confirmEndSession(sessionId, [currentUser.uid]);
+    // optionally show short success message — actual 'completed' will be reflected by the onSnapshot listener
+    console.log("✔️ Confirmed end request sent for", currentUser.uid);
+  } catch (err) {
+    console.error("Failed to send confirm end:", err);
+    alert("Failed to confirm end: " + (err.message || err));
+  } finally {
+    setIsEnding(false);
+  }
+};
+
 
   
   // --- *** THIS FUNCTION IS UPDATED *** ---
@@ -551,16 +562,19 @@ const handleFeedbackSubmit = async () => {
 
         <div className="flex justify-center mt-2">
           <button
-            onClick={handleRequestEndSession}
-            className="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded disabled:bg-gray-500"
-            disabled={isSessionCompleted || isWaitingForOther || isBeingAsked}
-          >
-            {isSessionCompleted
-              ? "Session Ended"
-              : isWaitingForOther
-              ? "Request Sent"
-              : "End Session"}
-          </button>
+  onClick={handleEndSessionClicked}
+  className="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded disabled:bg-gray-500"
+  disabled={isSessionCompleted || sessionInfo?.confirmedBy?.includes(currentUser.uid) || isEnding}
+>
+  {sessionInfo?.status === "completed"
+    ? "Session Ended"
+    : sessionInfo?.confirmedBy?.includes(currentUser.uid)
+    ? "Waiting for other user"
+    : isEnding
+    ? "Ending..."
+    : "End Session"}
+</button>
+
         </div>
       </footer>
 

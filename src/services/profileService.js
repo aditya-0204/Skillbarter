@@ -22,40 +22,42 @@ export async function createUserProfile(user) {
 
   const userRef = doc(db, `${privateUsersCol}/${user.uid}`);
   const docSnap = await getDoc(userRef);
+  const existingData = docSnap.exists() ? docSnap.data() : {};
+
+  const displayName = user.displayName || existingData.displayName || "New User";
+  const photoURL =
+    user.photoURL ||
+    existingData.photoURL ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`;
 
   const profileData = {
     uid: user.uid,
-    name: user.displayName || "New User",
-    email: user.email || "",
-    photoURL: user.photoURL || "",
-    skills: [],
-    stats: { swapsCompleted: 0 },
-    createdAt: new Date().toISOString(),
+    displayName,
+    email: user.email || existingData.email || "",
+    photoURL,
+    skills: existingData.skills || [],
+    coins: existingData.coins || 100,
+    stars: existingData.stars || 3,
+    stats: existingData.stats || { swapsCompleted: 0 },
+    swapCount: existingData.swapCount || 0,
+    createdAt: existingData.createdAt || new Date().toISOString(),
   };
 
-  if (!docSnap.exists()) {
-    await setDoc(userRef, profileData);
-    console.log("✅ Private profile created:", profileData);
-  }
+  await setDoc(userRef, profileData, { merge: true });
+  console.log("✅ Synced profile:", profileData);
 
-  // Public doc path: artifacts/{appId}/public/users/{uid}
+  // ✅ Update public doc
   const publicUserRef = doc(db, `artifacts/${appId}/public/data/users/${user.uid}`);
-  const avatarUrl =
-    user.photoURL ||
-    profileData.photoURL ||
-    `https://placehold.co/100x100/e2e8f0/333?text=${(profileData.name?.charAt(0).toUpperCase() || "?")}`;
-
   await setDoc(
     publicUserRef,
     {
-      name: profileData.name,
-      avatar: avatarUrl,
+      name: displayName,
+      avatar: photoURL,
       updatedAt: new Date().toISOString(),
     },
     { merge: true }
   );
-
-  console.log("✅ Public user updated with avatar:", avatarUrl);
+  console.log("✅ Public profile updated with avatar:", photoURL);
 }
 
 // --- THIS FUNCTION IS CORRECTED ---
@@ -141,11 +143,20 @@ export const getUserProfile = async (userId, user = null) => {
 
     // --- 3. Process the result ---
 
-    if (docSnap.exists()) {
+   if (docSnap.exists()) {
   const data = docSnap.data();
+
+  // ✅ Always ensure 'name' exists
+  const finalName =
+    data.name ||
+    user?.displayName ||
+    user?.email?.split("@")[0] ||
+    "SkillSwap User";
+
   return {
     ...defaultProfileShape,
     ...data,
+    name: finalName,
     stats: { ...defaultProfileShape.stats, ...(data.stats || {}) },
     avatar:
       (data.avatar && data.avatar.startsWith("http"))
@@ -153,6 +164,7 @@ export const getUserProfile = async (userId, user = null) => {
         : (data.photoURL || defaultProfileShape.avatar)
   };
 }
+
 
 
     // --- 4. Handle creation or public default ---

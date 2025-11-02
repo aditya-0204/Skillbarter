@@ -204,28 +204,19 @@ export const startSession = async (sessionId, userIds) => {
  * Client just confirms the request. Cloud Function will handle coins and completion.
  * (This replaces 'finalizeSession')
  */
-export const confirmEndSession  = async (sessionId, userIds) => {
+// sessionService.js
+export const confirmEndSession = async (sessionId, userIds) => {
   try {
     const res = await fetch('http://localhost:5000/confirmEndSession', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      // Send the data your server.js endpoint expects
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, userIds }),
     });
-
-    if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.error || 'Failed to confirm end on server');
-    }
-
-    // Server handled everything. The snapshot listener in ChatPage.jsx
-    // will see the 'status: "completed"' update.
-    return res.json();
-
-  } catch (error) {
-    console.error("Error in confirmEndRequest service:", error);
-    throw error;
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to confirm end on server');
+    return data;
+  } catch (err) {
+    console.error('Error in confirmEndSession service:', err);
+    throw err;
   }
 };
