@@ -10,7 +10,7 @@ const shopItems = [
     price: 1200,
     description: "Comfortable cotton T-shirt with SkillSwap branding.",
     image:
-      "public/images/t-shirt.jpg",
+      "/images/t-shirt.jpg",
   },
   {
     id: 2,
@@ -18,7 +18,7 @@ const shopItems = [
     price: 1200,
     description: "Soft and comfortable T-shirt.",
     image:
-      "public/images/black-t-shirt.jpg",
+      "/images/black-t-shirt.jpg",
   },
   {
     id: 3,
@@ -26,7 +26,7 @@ const shopItems = [
     price: 800,
     description: "Stay hydrated on the go with this stylish water bottle.",
     image:
-      "public/images/water-bottle.jpg",
+      "/images/water-bottle.jpg",
   },
   {
     id: 4,
@@ -34,7 +34,7 @@ const shopItems = [
     price: 2000,
     description: "Stay warm and stylish with this cozy hoodie.",
     image:
-      "public/images/hoodie.jpg",
+      "/images/hoodie.jpg",
   },
   {
     id: 5,
@@ -42,7 +42,7 @@ const shopItems = [
     price: 2000,
     description: "Stay warm and stylish with this cozy hoodie.",
     image:
-      "public/images/hoddie-black.jpg",
+      "/images/hoddie-black.jpg",
   },
 ];
 
