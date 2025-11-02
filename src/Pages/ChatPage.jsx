@@ -75,6 +75,7 @@ export default function ChatPage({ session }) {
   const [feedbackComment, setFeedbackComment] = useState("");
   const [sessionInfo, setSessionInfo] = useState(null);
   const [otherUserId, setOtherUserId] = useState(null);
+  
 
   
   const [isEnding, setIsEnding] = useState(false); // This is just for the "Ending..." button text
@@ -162,10 +163,10 @@ export default function ChatPage({ session }) {
   }, [otherUser, messages]);
 
   const getUserStatus = () => {
-    if (!otherUserInfo?.lastActive) return "Offline";
+    if (!otherUserInfo?.lastActive) return "";
     const last = otherUserInfo.lastActive.toDate();
     const diff = Date.now() - last.getTime();
-    return diff < 2 * 60 * 1000 ? "Online" : `Last seen ${last.toLocaleString()}`;
+    return diff < 2 * 60 * 1000 ? "" : `Last seen ${last.toLocaleString()}`;
   };
 
   const handleSend = async () => {
@@ -320,22 +321,24 @@ const handleFeedbackSubmit = async () => {
   }
 
   try {
-    const userArray =
-      sessionInfo?.users ||
-      sessionInfo?.participants ||
-      sessionInfo?.members ||
-      [sessionInfo?.userA, sessionInfo?.userB].filter(Boolean) || [];
+    // 🔍 Your Firestore structure uses user1/user2 and requesterId/receiverId
+    const userArray = [
+      sessionInfo?.user1,
+      sessionInfo?.user2,
+      sessionInfo?.requesterId,
+      sessionInfo?.receiverId,
+    ].filter(Boolean);
 
     console.log("🧩 Checking userArray:", userArray);
 
-    const otherId =
-      userArray.find((id) => id !== currentUser?.uid) || otherUserId;
+    const otherId = userArray.find((id) => id !== currentUser?.uid);
 
     if (!otherId) {
-  alert("⚠️ Could not find other user — session may have ended already.");
-  return;
-}
-
+      console.warn("⚠️ Could not find other user — fallback attempt failed");
+      console.log("sessionInfo:", sessionInfo);
+      alert("⚠️ Could not find other user — session may have ended already.");
+      return;
+    }
 
     console.log("💬 Submitting feedback for:", {
       sessionId,
@@ -357,12 +360,6 @@ const handleFeedbackSubmit = async () => {
     setFeedbackComment("");
   } catch (err) {
     console.error("❌ Feedback error (raw):", err);
-    console.log("🧩 Debug details:", {
-      sessionId,
-      currentUser: currentUser?.uid,
-      otherUserId,
-      sessionInfo,
-    });
     alert(`❌ Failed to submit feedback: ${err?.message || JSON.stringify(err)}`);
   }
 };

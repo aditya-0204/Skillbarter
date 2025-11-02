@@ -91,77 +91,124 @@ app.post('/startSession', async (req, res) => {
 
 // Endpoint to handle session end confirmation
 app.post('/confirmEndSession', async (req, res) => {
-  const { sessionId, userIds } = req.body;
-
-  if (!sessionId || !userIds || userIds.length === 0) {
-    return res.status(400).send({ error: 'Missing sessionId or userIds.' });
-  }
-
-  console.log(`⚙️ Processing confirmEndSession for ${sessionId}`);
   try {
+    const { sessionId, userIds } = req.body;
+    if (!sessionId || !userIds) {
+      return res.status(400).json({ error: "Invalid request" });
+    }
+
     const sessionRef = dbFirebase.doc(`/artifacts/${appId}/swaps/${sessionId}`);
     const sessionSnap = await sessionRef.get();
-
-    if (!sessionSnap.exists) {
-      return res.status(404).send({ error: 'Session not found.' });
-    }
-
     const sessionData = sessionSnap.data();
-    const confirmed = sessionData.confirmedBy || {};
-    const allUserIds = sessionData.users || userIds;
 
-    console.log("📜 Before update:", confirmed);
+    if (!sessionData) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+    const allUsers = [
+      sessionData.user1 || sessionData.requesterId,
+      sessionData.user2 || sessionData.receiverId,
+    ].filter(Boolean);
 
-    // Mark these users as confirmed
-    userIds.forEach(uid => { confirmed[uid] = true; });
-    console.log("📜 After update:", confirmed);
+    const confirmedBy = Array.from(new Set([
+      ...(sessionData.confirmedBy || []),
+      ...userIds.filter(Boolean)
+    ]));
 
-    await sessionRef.update({ confirmedBy: confirmed });
+    await sessionRef.update({ confirmedBy });
 
-    // Re-fetch to ensure latest data (avoid race condition)
-    const updatedSnap = await sessionRef.get();
-    const updatedData = updatedSnap.data();
-    const confirmedNow = updatedData.confirmedBy || {};
-    console.log("✅ Confirmed Now:", confirmedNow);
-    console.log("👥 All Users:", allUserIds);
+    // ✅ Fix: use requesterId / receiverId fallback
+    const bothConfirmed = allUsers.every(uid => confirmedBy.includes(uid));
 
-    // Check if both (all) users confirmed
-    const allConfirmed = allUserIds.every(uid => confirmedNow[uid]);
-    console.log("✅ allConfirmed:", allConfirmed);
-
-    if (!allConfirmed) {
-      return res.status(200).send({ success: true, message: 'Waiting for other user to confirm.' });
+    if (!bothConfirmed) {
+      console.log(`🕓 Waiting for both users to confirm session ${sessionId}`);
+      return res.json({ success: true, waiting: true, confirmedBy });
     }
 
-    if (updatedData.rewardsGiven) {
-      console.log(`⚠️ Coins already given for ${sessionId}`);
-      return res.status(200).send({ success: true, message: 'Coins already distributed.' });
+    if (sessionData.rewardsGiven) {
+      console.log(`⚠️ Rewards already given for session ${sessionId}`);
+      return res.json({ success: true, alreadyRewarded: true });
     }
 
-    // Award coins
-    console.log(`🎉 Both users confirmed. Awarding coins to: ${allUserIds}`);
+    // 🔍 ADDITIONAL DEBUG LOGS HERE
+    console.log("🧾 Preparing to update users:", allUsers);
+    allUsers.forEach(uid => {
+      console.log("Updating path:", `artifacts/${appId}/users/${uid}`);
+    });
+
     const batch = dbFirebase.batch();
-    allUserIds.forEach(uid => {
+
+    allUsers.forEach(uid => {
       const userRef = dbFirebase.doc(`artifacts/${appId}/users/${uid}`);
-      batch.set(userRef, { coins: admin.firestore.FieldValue.increment(25) }, { merge: true });
+      batch.set(
+        userRef,
+        {
+          coins: admin.firestore.FieldValue.increment(25),
+          swapCount: admin.firestore.FieldValue.increment(1),
+        },
+        { merge: true }
+      );
     });
 
     batch.update(sessionRef, {
       status: 'completed',
       endRequest: null,
       rewardsGiven: true,
+      confirmedBy,
     });
 
-    await batch.commit();
+    // 🔍 LOG BATCH COMMIT RESULT
+    await batch.commit()
+      .then(() => console.log("💰 Batch committed successfully for:", allUsers))
+      .catch(err => console.error("❌ Batch commit failed:", err));
 
-    console.log(`✅ Session ${sessionId} completed and coins distributed to ${allUserIds.join(', ')}`);
-    res.status(200).send({ success: true, message: 'Session ended and coins given to both users.' });
+    console.log(`✅ Both users confirmed end for session ${sessionId}. Coins + swapCount updated.`);
+    return res.json({ success: true, rewardedUsers: allUsers });
 
   } catch (error) {
-    console.error('🔥 Error in /confirmEndSession:', error);
-    res.status(500).send({ error: 'Internal server error ending session.', details: error.message });
+    console.error("🔥 Error in /confirmEndSession:", error);
+    return res.status(500).json({ error: error.message });
   }
 });
+
+
+// --- FEEDBACK ENDPOINT ---
+app.post('/giveFeedback', async (req, res) => {
+  try {
+    const { sessionId, userId, feedback } = req.body;
+
+    if (!sessionId || !userId || !feedback) {
+      return res.status(400).json({ error: "Invalid request" });
+    }
+
+    const sessionRef = dbFirebase.doc(`/artifacts/${appId}/swaps/${sessionId}`);
+    const sessionSnap = await sessionRef.get();
+
+    if (!sessionSnap.exists) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    const sessionData = sessionSnap.data();
+
+    // Allow feedback even if the session is completed
+    const updatedFeedback = {
+      ...(sessionData.feedback || {}),
+      [userId]: feedback,
+    };
+
+    await sessionRef.set(
+      { feedback: updatedFeedback },
+      { merge: true } // ✅ merge keeps 'status: completed' and rewards
+    );
+
+    console.log(`📝 Feedback saved for session ${sessionId} by ${userId}`);
+    return res.json({ success: true, feedback: updatedFeedback });
+
+  } catch (error) {
+    console.error("🔥 Error in /giveFeedback:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 
 
 // --- END FIREBASE SESSION ENDPOINTS ---

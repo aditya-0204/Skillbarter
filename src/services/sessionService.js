@@ -96,29 +96,36 @@ export async function createUserIfNotExist(user) {
   }
 }
 export const giveFeedback = async (sessionId, fromUserId, toUserId, rating, comment = "") => {
-  if (!sessionId || !fromUserId || !toUserId) {
-    console.error("❌ giveFeedback aborted: missing data", { sessionId, fromUserId, toUserId });
-    throw new Error("Missing feedback data — session may have already ended.");
-  }
-
   try {
-    console.log("📤 giveFeedback data:", { sessionId, fromUserId, toUserId, rating, comment });
+    if (!sessionId || !fromUserId || !toUserId) {
+      console.error("❌ giveFeedback aborted: missing data", { sessionId, fromUserId, toUserId });
+      throw new Error("Invalid feedback data — missing IDs.");
+    }
 
-    const userRef = doc(db, `artifacts/${appId}/users/${toUserId}`);
-    await updateDoc(userRef, {
-      feedback: arrayUnion({ sessionId, fromUserId, rating, comment }),
-      stars: rating,
+    console.log("📤 Submitting feedback:", { sessionId, fromUserId, toUserId, rating, comment });
+
+    // ✅ Send to backend — ensures both users can submit feedback even after session is completed
+    const res = await fetch("http://localhost:5000/giveFeedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId,
+        userId: fromUserId,
+        feedback: { toUserId, rating, comment },
+      }),
     });
 
-    const sessionRef = doc(db, `artifacts/${appId}/swaps/${sessionId}`);
-    await updateDoc(sessionRef, { feedbackGiven: true });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to save feedback");
 
-    console.log("✅ Feedback stored successfully");
+    console.log("✅ Feedback successfully saved to backend:", data);
+    return data;
   } catch (error) {
     console.error("🔥 giveFeedback error:", error);
     throw error;
   }
 };
+
 
 export const onSessionSnapshot = (sessionId, callback) => {
   const sessionRef = doc(db, `artifacts/${appId}/swaps/${sessionId}`);
@@ -131,15 +138,29 @@ export const onSessionSnapshot = (sessionId, callback) => {
   });
 };
 export const requestEndSession = async (sessionId, fromUserId) => {
-  const sessionRef = doc(db, `artifacts/${appId}/swaps/${sessionId}`);
-  await updateDoc(sessionRef, {
-    endRequest: {
-      from: fromUserId,
-      status: 'pending',
-      requestedAt: serverTimestamp()
-    }
-  });
+  const sessionRef = doc(db, `artifacts/${appId}/swaps/${sessionId}`);
+  const sessionSnap = await getDoc(sessionRef);
+
+  if (!sessionSnap.exists()) {
+    console.error("❌ No session found to end.");
+    return;
+  }
+
+  const data = sessionSnap.data();
+  const allUsers = [data.user1 || data.requesterId, data.user2 || data.receiverId].filter(Boolean);
+
+  await updateDoc(sessionRef, {
+    endRequest: {
+      from: fromUserId,
+      status: 'pending',
+      requestedAt: serverTimestamp(),
+    },
+    // ✅ Ensure we always save both user IDs for backend to read
+    user1: allUsers[0],
+    user2: allUsers[1],
+  });
 };
+
 export const cancelEndSession = async (sessionId) => {
   const sessionRef = doc(db, `artifacts/${appId}/swaps/${sessionId}`);
   await updateDoc(sessionRef, { endRequest: null });
