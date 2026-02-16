@@ -35,7 +35,7 @@ SkillSwap is a **student-focused skill exchange platform** where users can learn
 - **Frontend:** React.js
 - **Styling:** Tailwind CSS
 - **Backend & Database:** Firebase
-- **Authentication:** Firebase Auth
+- **Authentication:** Google Auth
 - **Hosting:** Vercel
 
 ---
@@ -49,6 +49,7 @@ SkillSwap is a **student-focused skill exchange platform** where users can learn
 ---
 
 ## 📸 Screenshots
+```md
 <img width="1907" height="863" alt="image" src="https://github.com/user-attachments/assets/0181bbae-10b1-4b04-9644-98def89ba10d" />
 <img width="1897" height="861" alt="image" src="https://github.com/user-attachments/assets/eaec2c87-d718-4260-94d8-eac5f8d20de1" />
 <img width="1902" height="863" alt="image" src="https://github.com/user-attachments/assets/297946a3-0e88-48c5-ae3d-662d01e528da" />
