@@ -55,7 +55,7 @@ SkillSwap is a **student-focused skill exchange platform** where users can learn
 
 ##⚙️ **Installation & Setup**
 ```bash
-git clone https://github.com/your-username/skillswap.git
+git clone https://github.com/aditya-0204/Skillbarter.git
 cd skillswap
 npm install
 VITE_FIREBASE_API_KEY=your_api_key
