@@ -1,5 +1,4 @@
-<img width="1907" height="863" alt="image" src="https://github.com/user-attachments/assets/0181bbae-10b1-4b04-9644-98def89ba10d" />
-# 🌟 SkillSwap
+## 🌟 SkillSwap
 
 SkillSwap is a **student-focused skill exchange platform** where users can learn and teach skills without monetary transactions. Instead of paying money, students exchange knowledge — for example, coding help in return for design support.
 
