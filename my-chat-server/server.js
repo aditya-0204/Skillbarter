@@ -1,28 +1,23 @@
-// server.js (Using CommonJS 'require' syntax)
+
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const admin = require('firebase-admin'); // <-- Import Firebase Admin
+const admin = require('firebase-admin'); // Import Firebase Admin
 
-// --- Configuration ---
-const serviceAccount = require('./serviceAccountKey.json'); // <-- Path to your key
-const appId = 'default-app-id'; // <-- MUST match your client-side appId
-const PORT = process.env.PORT || 5000; // Your existing port
-
-// --- Initialize Firebase Admin ---
+//Configuration 
+const serviceAccount = require('./serviceAccountKey.json');
+const appId = 'default-app-id'; //  client-side appId
+const PORT = process.env.PORT || 5000; //existing port
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
-const dbFirebase = admin.firestore(); // <-- Use a different variable name to avoid conflict with Mongo 'db'
-// --- End Firebase Admin Initialization ---
-
+const dbFirebase = admin.firestore(); 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- File Upload Logic (Unchanged) ---
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
@@ -40,16 +35,9 @@ app.use("/files", express.static(uploadDir)); // Serve uploaded files
 
 app.post("/upload", upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-  // Make sure this URL matches how you access your server
   const fileUrl = `${req.protocol}://${req.get('host')}/files/${req.file.filename}`;
   res.json({ filename: req.file.filename, url: fileUrl });
 });
-// --- End File Upload Logic ---
-
-
-// --- ADD FIREBASE SESSION ENDPOINTS ---
-
-// Endpoint to handle session start
 app.post('/startSession', async (req, res) => {
   const { sessionId, userIds } = req.body;
 
@@ -89,7 +77,6 @@ app.post('/startSession', async (req, res) => {
   }
 });
 
-// Endpoint to handle session end confirmation
 app.post('/confirmEndSession', async (req, res) => {
   try {
     const { sessionId, userIds } = req.body;
@@ -113,42 +100,33 @@ app.post('/confirmEndSession', async (req, res) => {
       ...(sessionData.confirmedBy || []),
       ...userIds.filter(Boolean)
     ]));
-
     await sessionRef.update({ confirmedBy });
-
-    // ✅ Fix: use requesterId / receiverId fallback
     const bothConfirmed = allUsers.every(uid => confirmedBy.includes(uid));
 
     if (!bothConfirmed) {
       console.log(`🕓 Waiting for both users to confirm session ${sessionId}`);
       return res.json({ success: true, waiting: true, confirmedBy });
     }
-
     if (sessionData.rewardsGiven) {
       console.log(`⚠️ Rewards already given for session ${sessionId}`);
       return res.json({ success: true, alreadyRewarded: true });
     }
-
-    // 🔍 ADDITIONAL DEBUG LOGS HERE
     console.log("🧾 Preparing to update users:", allUsers);
     allUsers.forEach(uid => {
       console.log("Updating path:", `artifacts/${appId}/users/${uid}`);
     });
-
     const batch = dbFirebase.batch();
-
     allUsers.forEach(uid => {
       const userRef = dbFirebase.doc(`artifacts/${appId}/users/${uid}`);
       batch.set(
         userRef,
         {
           coins: admin.firestore.FieldValue.increment(25),
-           "stats.swapsCompleted": admin.firestore.FieldValue.increment(1),
+           "swapsCompleted": admin.firestore.FieldValue.increment(1),
         },
         { merge: true }
       );
     });
-
     batch.update(sessionRef, {
       status: 'completed',
       endRequest: null,
@@ -197,7 +175,7 @@ app.post('/giveFeedback', async (req, res) => {
 
     await sessionRef.set(
       { feedback: updatedFeedback },
-      { merge: true } // ✅ merge keeps 'status: completed' and rewards
+      { merge: true } 
     );
 
     console.log(`📝 Feedback saved for session ${sessionId} by ${userId}`);
@@ -209,16 +187,7 @@ app.post('/giveFeedback', async (req, res) => {
   }
 });
 
-
-
-// --- END FIREBASE SESSION ENDPOINTS ---
-
-
-// Start server (Your existing MongoDB connection logic might go here too)
-// If db.js handles the connection, make sure it's called appropriately before listen
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
-
-// Example if you need to connect Mongo before starting:
 // const { connectToServer } = require('./db'); // Assuming db.js is in the same folder
 // connectToServer().then(() => {
 //   app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT} and connected to MongoDB`));
