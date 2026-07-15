@@ -5,15 +5,34 @@ const path = require("path");
 const fs = require("fs");
 const admin = require("firebase-admin");
 
-const serviceAccount = require("./serviceAccountKey.json");
-
 const appId = "default-app-id";
 const PORT = process.env.PORT || 5000;
 const SESSION_COLLECTION = `artifacts/${appId}/swaps`;
 const USER_COLLECTION = `artifacts/${appId}/users`;
 
+function loadServiceAccount() {
+  const {
+    FIREBASE_PROJECT_ID,
+    FIREBASE_CLIENT_EMAIL,
+    FIREBASE_PRIVATE_KEY,
+  } = process.env;
+
+  if (FIREBASE_PROJECT_ID && FIREBASE_CLIENT_EMAIL && FIREBASE_PRIVATE_KEY) {
+    return {
+      projectId: FIREBASE_PROJECT_ID,
+      clientEmail: FIREBASE_CLIENT_EMAIL,
+      privateKey: FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    };
+  }
+
+  // Local fallback for development machines that already use the JSON key file.
+  // Render should use environment variables instead of this file.
+  // eslint-disable-next-line global-require, import/no-dynamic-require
+  return require("./serviceAccountKey.json");
+}
+
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
+  credential: admin.credential.cert(loadServiceAccount()),
 });
 
 const db = admin.firestore();
