@@ -10,6 +10,8 @@ import {
   getUser,
   updateUserLastActive,
   createUserIfNotExist,
+  uploadFile,
+  uploadAudio,
   startSession, // <-- This is the new, simpler function
   giveFeedback,
   onSessionSnapshot,
@@ -201,28 +203,18 @@ export default function ChatPage({ session }) {
     if (!file || !sessionId || !currentUser) return;
     setSending(true);
     setError("");
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("sessionId", sessionId);
-    formData.append("senderId", currentUser.uid);
     try {
-      const res = await fetch("http://localhost:5000/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) throw new Error("Upload failed");
-      const data = await res.json();
-      if (data.url) {
-        let type = "file";
-        if (file.type.startsWith("image/")) type = "image";
-        else if (file.type === "application/pdf") type = "pdf";
-        else if (file.type.startsWith("audio/")) type = "audio";
-        await sendMessage(sessionId, currentUser.uid, data.url, type);
-      }
+      const url = await uploadFile(file, sessionId);
+      let type = "file";
+      if (file.type.startsWith("image/")) type = "image";
+      else if (file.type === "application/pdf") type = "pdf";
+      else if (file.type.startsWith("audio/")) type = "audio";
+      await sendMessage(sessionId, currentUser.uid, url, type);
     } catch (err) {
       setError(err.message);
     } finally {
       setSending(false);
+      e.target.value = "";
     }
   };
 
@@ -239,20 +231,10 @@ export default function ChatPage({ session }) {
       setSending(true);
       try {
         const blob = new Blob(recordedChunksRef.current, { type: "audio/webm" });
-        const formData = new FormData();
-        formData.append("file", blob, `audio-${Date.now()}.webm`);
-        formData.append("sessionId", sessionId);
-        formData.append("senderId", currentUser.uid);
-        const res = await fetch("http://localhost:5000/upload", {
-          method: "POST",
-          body: formData,
-        });
-        const data = await res.json();
-        if (data.url) {
-          await sendMessage(sessionId, currentUser.uid, data.url, "audio");
-        }
-      } catch {
-        setError("Audio upload failed.");
+        const url = await uploadAudio(blob, sessionId);
+        await sendMessage(sessionId, currentUser.uid, url, "audio");
+      } catch (err) {
+        setError(err.message || "Audio upload failed.");
       } finally {
         setSending(false);
       }
