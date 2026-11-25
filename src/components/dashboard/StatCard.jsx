@@ -1,10 +1,15 @@
 import React from 'react';
 
-export default function StatCard({ title, value }) {
+export default function StatCard({ title, value, icon: Icon }) {
   return (
-    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-lg text-center">
-      <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
-      <p className="text-3xl font-bold text-slate-900 dark:text-white mt-1">{value}</p>
+    <div className="rounded-xl border border-slate-200 border-t-4 border-t-blue-700 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium leading-5 text-slate-600">{title}</p>
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-800">
+          <Icon aria-hidden="true" className="h-5 w-5" />
+        </span>
+      </div>
+      <p className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{value}</p>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { onSwapRequestsSnapshot } from '../services/profileService.js';
 import { useCoins } from '../store/coinStore.jsx'; 
@@ -7,6 +7,7 @@ import { useCoins } from '../store/coinStore.jsx';
 export default function Navbar() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [requestCount, setRequestCount] = useState(0);
   const { coins, loading } = useCoins();
 
@@ -28,36 +29,43 @@ export default function Navbar() {
     }
   };
   
-  const linkClass = ({ isActive }) => 
-    isActive 
-      ? 'bg-indigo-700 text-white px-3 py-2 rounded-md text-sm font-medium' 
-      : 'text-gray-300 hover:bg-slate-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium';
+  const linkClass = ({ isActive }) =>
+    `inline-flex items-center rounded-lg px-3 py-2 text-sm font-semibold transition-colors duration-150 ${
+      isActive
+        ? 'bg-blue-50 text-blue-800'
+        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+    }`;
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
 
   return (
-    <nav className="bg-slate-800 dark:bg-slate-900 shadow-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <NavLink to="/" className="font-bold text-2xl text-white">SkillSwap</NavLink>
-          
-          <div className="flex items-center space-x-4">
-            <NavLink to="/browse" className={linkClass}>Browse</NavLink>
+    <nav className="sticky top-0 z-40 border-b border-slate-200 bg-white shadow-sm">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex min-h-16 flex-wrap items-center justify-between gap-x-6 gap-y-3 py-3">
+          <NavLink to="/" className="shrink-0 text-2xl font-bold tracking-tight text-blue-900">SkillSwap</NavLink>
+
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-1 sm:gap-2">
+            {currentUser && !isAuthPage && <NavLink to="/browse" className={linkClass}>Browse</NavLink>}
             {currentUser ? (
               <>
                 <NavLink to="/dashboard" className={linkClass}>Dashboard</NavLink>
                 <NavLink to="/requests" className={({isActive}) => `${linkClass({isActive})} relative`}>
                   Requests
                   {requestCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                    <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-xs font-bold text-white">
                       {requestCount}
                     </span>
                   )}
                 </NavLink>
                 <NavLink to="/profile" className={linkClass}>Skillset</NavLink>
-                
-                {/* Add the new NavLink to the Shop here */}
                 <NavLink to="/shop" className={linkClass}>Shop</NavLink>
-                
-                <div className="flex items-center bg-slate-700 px-3 py-2 rounded-md text-sm font-medium text-white">
+              </>
+            ) : null}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            {currentUser ? (
+              <>
+                <div className="flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
                   {loading ? (
                     '...'
                   ) : (
@@ -67,7 +75,7 @@ export default function Navbar() {
                   )}
                 </div>
 
-                <button onClick={handleLogout} className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md text-sm font-medium">
+                <button onClick={handleLogout} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900">
                   Logout
                 </button>
               </>

@@ -6,7 +6,7 @@ export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { currentUser, signup, loginWithGoogle } = useAuth(); // ✅ include Google login
+  const { currentUser, signup, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -25,81 +25,76 @@ export default function Signup() {
     }
   }
 
-  // ✅ Google Sign-Up handler
   async function handleGoogleSignup() {
     try {
       setError('');
-      await loginWithGoogle(); // Works for both login and signup
+      await loginWithGoogle();
     } catch (err) {
       setError(err.message || 'Google sign-in failed');
     }
   }
 
   return (
-    <div className="max-w-md mx-auto mt-12 bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-lg">
-      <h2 className="text-3xl font-bold mb-6 text-center text-slate-900 dark:text-white">
-        Create an Account
-      </h2>
-      {error && (
-        <p className="text-red-500 mb-4 p-3 bg-red-100 dark:bg-red-900/30 rounded-md">
-          {error}
+    <div className="flex min-h-full items-center justify-center px-4 py-10 sm:px-6">
+      <section className="mx-auto w-full max-w-md rounded-xl border border-slate-200 border-t-4 border-t-blue-700 bg-white p-8 shadow-sm">
+        <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">SkillSwap community</p>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">Create your account</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-600">Start sharing your skills and learning with peers.</p>
+        {error && (
+          <p role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </p>
+        )}
+        <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+          <div>
+            <label htmlFor="signup-email" className="mb-1.5 block text-sm font-medium text-slate-700">Email address</label>
+            <input
+              id="signup-email"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-3 text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="signup-password" className="mb-1.5 block text-sm font-medium text-slate-700">Password</label>
+            <input
+              id="signup-password"
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="At least 6 characters"
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-3 text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+              required
+            />
+          </div>
+          <button type="submit" className="w-full rounded-lg bg-blue-700 py-3 font-semibold text-white transition-colors hover:bg-blue-800">
+            Create account
+          </button>
+
+          <div className="flex items-center gap-3" aria-hidden="true">
+            <hr className="flex-1 border-slate-200" />
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-400">OR</span>
+            <hr className="flex-1 border-slate-200" />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleSignup}
+            className="flex w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white py-3 font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+          >
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="" className="h-5 w-5" />
+            Continue with Google
+          </button>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-slate-600">
+          Already have an account?{' '}
+          <Link to="/login" className="font-semibold text-blue-700 hover:text-blue-800 hover:underline">Log In</Link>
         </p>
-      )}
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <input
-          type="email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          placeholder="Email"
-          className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-          required
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          placeholder="Password (min. 6 characters)"
-          className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-          required
-        />
-        <button
-          type="submit"
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-semibold"
-        >
-          Sign Up
-        </button>
-
-        {/* ✅ Divider */}
-        <div className="flex items-center my-4">
-          <hr className="flex-1 border-gray-300 dark:border-slate-600" />
-          <span className="px-3 text-gray-500 text-sm dark:text-gray-400">or</span>
-          <hr className="flex-1 border-gray-300 dark:border-slate-600" />
-        </div>
-
-        {/* ✅ Google Sign-Up Button */}
-        <button
-          type="button"
-          onClick={handleGoogleSignup}
-          className="w-full flex items-center justify-center gap-2 border border-gray-300 dark:border-slate-600 py-3 rounded-lg font-semibold hover:bg-gray-100 dark:hover:bg-slate-700 transition"
-        >
-          <img
-            src="https://www.svgrepo.com/show/475656/google-color.svg"
-            alt="Google"
-            className="w-5 h-5"
-          />
-          Continue with Google
-        </button>
-      </form>
-
-      <p className="mt-6 text-sm text-center text-gray-600 dark:text-gray-400">
-        Already have an account?{' '}
-        <Link
-          to="/login"
-          className="font-medium text-indigo-600 hover:underline dark:text-indigo-400"
-        >
-          Log In
-        </Link>
-      </p>
+      </section>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { getUserProfile, addUserSkill, deleteUserSkill } from '../services/profileService.js';
 import AddSkillModal from '../components/AddSkillModal.jsx';
 import SkillCard from '../components/SkillCard.jsx';
+import { Plus } from 'lucide-react';
 
 export default function Profile() {
   const { currentUser } = useAuth();
@@ -85,18 +86,27 @@ export default function Profile() {
     : [];
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-6">Your Profile</h1>
-      <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">Your Skills</h2>
-          <button onClick={() => setIsModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg">
+    <div>
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-8 sm:px-6 lg:px-8">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">Your Profile</p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Your Skills</h1>
+            <p className="mt-2 text-base leading-6 text-slate-600">Manage the skills you share with the community.</p>
+          </div>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-blue-800"
+          >
+            <Plus aria-hidden="true" className="h-5 w-5" />
             Add New Skill
           </button>
         </div>
+      </section>
 
+      <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
         {validSkills.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid auto-rows-fr grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {validSkills.map((skill) => (
               <SkillCard
                 key={skill.publicId} // Now this is safe
@@ -106,11 +116,11 @@ export default function Profile() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-10 border-2 border-dashed rounded-lg">
-            <p className="text-gray-500">You haven't added any skills yet.</p>
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+            <p className="text-slate-600">You haven't added any skills yet.</p>
           </div>
         )}
-      </div>
+      </section>
 
       <AddSkillModal
         isOpen={isModalOpen}

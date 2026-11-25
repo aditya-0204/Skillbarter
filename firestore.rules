@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isSwapParticipant(resourceData) {
+      return signedIn() && (
+        resourceData.requesterId == request.auth.uid ||
+        resourceData.receiverId == request.auth.uid ||
+        request.auth.uid in resourceData.users
+      );
+    }
+
+    match /artifacts/default-app-id/users/{userId} {
+      allow read: if isSelf(userId);
+      allow create: if isSelf(userId);
+      allow update: if isSelf(userId)
+        && !("coins" in request.resource.data.diff(resource.data).affectedKeys())
+        && !("stats" in request.resource.data.diff(resource.data).affectedKeys())
+        && !("stars" in request.resource.data.diff(resource.data).affectedKeys())
+        && !("swapCount" in request.resource.data.diff(resource.data).affectedKeys());
+      allow delete: if false;
+    }
+
+    match /artifacts/default-app-id/public/data/users/{userId} {
+      allow read: if true;
+      allow write: if isSelf(userId);
+    }
+
+    match /artifacts/default-app-id/public/data/skills/{skillId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /artifacts/default-app-id/swaps/{swapId} {
+      allow read: if isSwapParticipant(resource.data);
+      allow create: if signedIn() && request.resource.data.requesterId == request.auth.uid;
+      allow update: if false;
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isSwapParticipant(get(/databases/$(database)/documents/artifacts/default-app-id/swaps/$(swapId)).data);
+        allow create: if signedIn()
+          && request.resource.data.senderId == request.auth.uid
+          && isSwapParticipant(get(/databases/$(database)/documents/artifacts/default-app-id/swaps/$(swapId)).data);
+        allow delete: if signedIn() && resource.data.senderId == request.auth.uid;
+        allow update: if false;
+      }
+    }
+  }
+}

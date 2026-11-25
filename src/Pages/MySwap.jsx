@@ -8,8 +8,25 @@ import {
   onCompletedSwapsSnapshot // <-- 1. IMPORT NEW FUNCTION
 } from '../services/profileService.js';
 import SelectSkillModal from '../components/SelectSkillModal.jsx';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, CalendarDays, Check, CheckCircle, History, Inbox, MessageCircle, X } from 'lucide-react';
 // We are removing addCoinsToUser, as the chat page handles it.
+
+function SwapEmptyState({ icon: Icon, title, description }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
+      <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-800">
+        <Icon aria-hidden="true" className="h-6 w-6" />
+      </span>
+      <h3 className="mt-4 text-lg font-semibold text-slate-900">{title}</h3>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">{description}</p>
+      <Link to="/browse" className="mt-5 inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-800">
+        Browse Skills
+        <ArrowRight aria-hidden="true" className="h-4 w-4" />
+      </Link>
+    </div>
+  );
+}
 
 export default function MySwaps() {
   const { currentUser } = useAuth();
@@ -106,33 +123,44 @@ export default function MySwaps() {
   };
 
   if (!currentUser) {
-    return <div className="text-center py-10">Please log in to manage your swaps.</div>;
+    return <div className="mx-auto max-w-6xl px-4 py-16 text-center text-slate-600 sm:px-6 lg:px-8">Please log in to manage your swaps.</div>;
   }
 
   return (
     <>
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-6 text-slate-900 dark:text-white">My Swaps</h1>
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+          <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">Learning together</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">My Swaps</h1>
+          <p className="mt-2 text-base leading-6 text-slate-600">Manage requests, keep up with sessions, and revisit completed swaps.</p>
+        </div>
+      </section>
 
-        {/* --- 5. MODIFY TABS --- */}
-        <div className="flex border-b border-gray-200 dark:border-slate-700 mb-6">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+        <div className="mb-6 flex overflow-x-auto border-b border-slate-200">
           <button
             onClick={() => setActiveTab('requests')}
-            className={`py-2 px-4 transition-colors duration-200 ${activeTab === 'requests' ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`-mb-px inline-flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${activeTab === 'requests' ? 'border-blue-700 text-blue-800' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
-            Pending Requests ({requests.length})
+            <Inbox aria-hidden="true" className="h-4 w-4" />
+            Pending Requests
+            <span className={`rounded-full px-2 py-0.5 text-xs ${activeTab === 'requests' ? 'bg-blue-50 text-blue-800' : 'bg-slate-100 text-slate-600'}`}>{requests.length}</span>
           </button>
           <button
             onClick={() => setActiveTab('sessions')}
-            className={`py-2 px-4 transition-colors duration-200 ${activeTab === 'sessions' ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`-mb-px inline-flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${activeTab === 'sessions' ? 'border-blue-700 text-blue-800' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
-            Confirmed Sessions ({sessions.length})
+            <CalendarDays aria-hidden="true" className="h-4 w-4" />
+            Confirmed Sessions
+            <span className={`rounded-full px-2 py-0.5 text-xs ${activeTab === 'sessions' ? 'bg-blue-50 text-blue-800' : 'bg-slate-100 text-slate-600'}`}>{sessions.length}</span>
           </button>
           <button
             onClick={() => setActiveTab('completed')}
-            className={`py-2 px-4 transition-colors duration-200 ${activeTab === 'completed' ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`-mb-px inline-flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${activeTab === 'completed' ? 'border-blue-700 text-blue-800' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
-            Swap History ({completed.length})
+            <History aria-hidden="true" className="h-4 w-4" />
+            Swap History
+            <span className={`rounded-full px-2 py-0.5 text-xs ${activeTab === 'completed' ? 'bg-blue-50 text-blue-800' : 'bg-slate-100 text-slate-600'}`}>{completed.length}</span>
           </button>
         </div>
 
@@ -140,35 +168,44 @@ export default function MySwaps() {
         {activeTab === 'requests' && (
           <div className="space-y-4">
             {requestsLoading ? (
-              <p className="text-center py-10">Loading requests...</p>
+              <p className="rounded-xl border border-slate-200 bg-white py-10 text-center text-slate-500">Loading requests...</p>
             ) : requests.length > 0 ? (
               requests.map(req => (
-                <div key={req.id} className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-md">
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm dark:text-gray-300">
-                      <span className="font-semibold dark:text-white">{req.requesterName}</span> wants to swap for: <span className="font-semibold dark:text-white">{req.skillTitle}</span>
-                    </p>
-                    <div className="flex gap-2 flex-shrink-0">
-                      <button onClick={() => handleReject(req.id)} className="text-xs px-3 py-1 bg-red-100 text-red-700 rounded-full hover:bg-red-200">Reject</button>
-                      <button onClick={() => handleAcceptClick(req)} className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded-full hover:bg-green-200">Accept</button>
+                <article key={req.id} className="rounded-xl border border-slate-200 border-l-4 border-l-amber-500 bg-white p-5 shadow-sm">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Pending request
+                      </span>
+                      <p className="mt-3 text-sm leading-6 text-slate-600">
+                        <span className="font-semibold text-slate-900">{req.requesterName}</span> wants to swap for <span className="font-semibold text-slate-900">{req.skillTitle}</span>
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <button onClick={() => handleReject(req.id)} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50">
+                        <X aria-hidden="true" className="h-4 w-4" /> Reject
+                      </button>
+                      <button onClick={() => handleAcceptClick(req)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-800">
+                        <Check aria-hidden="true" className="h-4 w-4" /> Accept
+                      </button>
                     </div>
                   </div>
                   {Array.isArray(req.requesterSkills) && req.requesterSkills.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-700">
-                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">In return, they are offering skills like:</p>
+                    <div className="mt-4 border-t border-slate-100 pt-4">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">In return, they are offering skills like:</p>
                       <div className="flex flex-wrap gap-2">
                         {req.requesterSkills.map(skill => (
-                          <span key={skill.title} className="text-xs bg-gray-200 dark:bg-slate-600 px-2 py-1 rounded">
+                          <span key={skill.title} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
                             {skill.title}
                           </span>
                         ))}
                       </div>
                     </div>
                   )}
-                </div>
+                </article>
               ))
             ) : (
-              <p className="text-center text-gray-500 py-10">You have no pending requests.</p>
+              <SwapEmptyState icon={Inbox} title="You have no pending requests" description="When someone requests a skill swap, you’ll find the details and response options here." />
             )}
           </div>
         )}
@@ -177,33 +214,37 @@ export default function MySwaps() {
         {activeTab === 'sessions' && (
           <div className="space-y-4">
             {sessionsLoading ? (
-              <p className="text-center py-10">Loading sessions...</p>
+              <p className="rounded-xl border border-slate-200 bg-white py-10 text-center text-slate-500">Loading sessions...</p>
             ) : sessions.length > 0 ? (
               sessions.map(session => {
                 const otherPartyName = session.otherParty?.name || 'an unknown user';
                 return (
-                  <div key={session.id} className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-md flex justify-between items-start">
+                  <article key={session.id} className="flex flex-col gap-4 rounded-xl border border-slate-200 border-l-4 border-l-green-600 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h3 className="font-bold text-lg dark:text-white">{session.skillTitle}</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Swap confirmed with <span className="font-semibold">{otherPartyName}</span>.
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-800">
+                        <CheckCircle aria-hidden="true" className="h-3.5 w-3.5" /> Confirmed session
+                      </span>
+                      <h3 className="mt-3 text-lg font-bold text-slate-900">{session.skillTitle}</h3>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Swap confirmed with <span className="font-semibold text-slate-800">{otherPartyName}</span>.
                       </p>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <p className="text-xs text-gray-400 dark:text-gray-500">{formatDate(session.createdAt)}</p>
+                    <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
+                      <p className="text-sm text-slate-500">{formatDate(session.createdAt)}</p>
                       <button
                         onClick={() => navigate(`/chat/${session.id}`)}
-                        className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200"
+                        className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-800"
                       >
+                        <MessageCircle aria-hidden="true" className="h-4 w-4" />
                         Go to Chat
                       </button>
                       {/* --- "Mark as Complete" button is GONE --- */}
                     </div>
-                  </div>
+                  </article>
                 );
               })
             ) : (
-              <p className="text-center text-gray-500 py-10">You have no confirmed sessions yet.</p>
+              <SwapEmptyState icon={CalendarDays} title="No confirmed sessions yet" description="Accepted swaps and their chat links will appear here when you start learning together." />
             )}
           </div>
         )}
@@ -212,7 +253,7 @@ export default function MySwaps() {
 {activeTab === 'completed' && (
   <div className="space-y-4">
     {completedLoading ? (
-      <p className="text-center py-10">Loading swap history...</p>
+      <p className="rounded-xl border border-slate-200 bg-white py-10 text-center text-slate-500">Loading swap history...</p>
     ) : completed.length > 0 ? (
       completed.map(session => {
         const otherPartyName = session.otherParty?.name || 'an unknown user';
@@ -224,27 +265,31 @@ export default function MySwaps() {
         return (
           <div
             key={session.id}
-            className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-md flex justify-between items-start opacity-70"
+            className="flex flex-col gap-4 rounded-xl border border-slate-200 border-l-4 border-l-slate-400 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
-              <h3 className="font-bold text-lg dark:text-white">{session.skillTitle}</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Swap completed with <span className="font-semibold">{otherPartyName}</span>.
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                <CheckCircle aria-hidden="true" className="h-3.5 w-3.5" /> Completed
+              </span>
+              <h3 className="mt-3 text-lg font-bold text-slate-900">{session.skillTitle}</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Swap completed with <span className="font-semibold text-slate-800">{otherPartyName}</span>.
               </p>
             </div>
-            <div className="flex flex-col items-end gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
               {/* ✅ Safely show formatted date if available */}
               {completedTimestamp ? (
-                <p className="text-xs text-gray-400 dark:text-gray-500">
+                <p className="text-sm text-slate-500">
                   Completed on: {formatDate(completedTimestamp)}
                 </p>
               ) : (
-                <p className="text-xs text-gray-400 dark:text-gray-500">Date not available</p>
+                <p className="text-sm text-slate-500">Date not available</p>
               )}
               <button
                 onClick={() => navigate(`/chat/${session.id}`)}
-                className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200"
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-800"
               >
+                <MessageCircle aria-hidden="true" className="h-4 w-4" />
                 Go to Chat
               </button>
             </div>
@@ -252,7 +297,7 @@ export default function MySwaps() {
         );
       })
     ) : (
-      <p className="text-center text-gray-500 py-10">You have no completed swaps.</p>
+      <SwapEmptyState icon={History} title="No completed swaps yet" description="Your finished skill exchanges will be collected here so you can look back on your progress." />
     )}
   </div>
 )}

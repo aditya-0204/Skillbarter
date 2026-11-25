@@ -12,6 +12,7 @@ import StatCard from '../components/dashboard/StatCard.jsx';
 import ChangePasswordForm from '../components/dashboard/ChangePasswordForm.jsx';
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
+import { BookOpen, CheckCircle } from 'lucide-react';
 
 
 export default function Dashboard() {
@@ -94,29 +95,33 @@ const swapsCompleted = (profile?.swapCount ?? 0) + (profile?.stats?.swapsComplet
         />
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* ... your existing header ... */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 dark:text-white">
- Welcome back, {displayName}!          </h1>
-          <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">Here's a snapshot of your SkillSwap activity.</p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1 space-y-8">
-            {/* Pass the function to open the modal to ProfileCard */}
-            <ProfileCard
-              profile={profile}
-              onOpenChangePassword={() => setShowChangePassword(true)}
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <StatCard title="Skills Offered" value={skillsCount} />
-<StatCard title="Swaps Completed" value={swapsCompleted} />
-
-            </div>
+      <div>
+        <section className="border-b border-slate-200 bg-white">
+          <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+            <p className="text-sm font-semibold uppercase tracking-widest text-blue-700">Learning dashboard</p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+              Welcome back, {displayName}!
+            </h1>
+            <p className="mt-2 text-base leading-6 text-slate-600">Here's a snapshot of your SkillSwap activity.</p>
           </div>
-          <div className="lg:col-span-2">
-            <ArsenalCard skills={profile.skills} />
+        </section>
+
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
+            <div className="space-y-5 lg:col-span-4">
+              {/* Pass the function to open the modal to ProfileCard */}
+              <ProfileCard
+                profile={profile}
+                onOpenChangePassword={() => setShowChangePassword(true)}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <StatCard title="Skills Offered" value={skillsCount} icon={BookOpen} />
+                <StatCard title="Swaps Completed" value={swapsCompleted} icon={CheckCircle} />
+              </div>
+            </div>
+            <div className="lg:col-span-8">
+              <ArsenalCard skills={profile.skills} />
+            </div>
           </div>
         </div>
       </div>

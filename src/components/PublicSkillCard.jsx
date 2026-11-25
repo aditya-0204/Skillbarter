@@ -1,4 +1,5 @@
 import React from 'react';
+import { ArrowRight, BookOpen } from 'lucide-react';
 
 export default function PublicSkillCard({ skill, onSwapRequest }) {
   if (!skill) return null;
@@ -10,32 +11,42 @@ export default function PublicSkillCard({ skill, onSwapRequest }) {
   const description = skill.description || 'No description available.';
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden transform hover:-translate-y-1 transition-transform duration-300 group">
-      <div className="p-6 flex flex-col h-full">
-        <div className="flex items-center mb-4">
-          <img
-            className="w-12 h-12 rounded-full object-cover mr-4"
-            src={userAvatar}
-            alt={userName}
-          />
-          <div>
-            <p className="font-semibold text-slate-900 dark:text-white">{userName}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Offers:</p>
+    <article className="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200 border-t-4 border-t-blue-700 bg-white shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-md">
+      <div className="flex h-full flex-col p-5 sm:p-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-900">
+            <BookOpen aria-hidden="true" className="h-4 w-4" />
+            Peer skill
+          </span>
+          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">1-on-1 swap</span>
+        </div>
+
+        <div className="flex flex-1 flex-col">
+          <h3 className="text-xl font-bold leading-snug text-slate-900">{title}</h3>
+          <p className="mt-3 line-clamp-2 break-words text-sm leading-6 text-slate-600">{description}</p>
+        </div>
+
+        <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <img
+              className="h-9 w-9 shrink-0 rounded-full border border-slate-200 object-cover"
+              src={userAvatar}
+              alt={userName}
+            />
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500">Instructor</p>
+              <p className="truncate text-sm font-semibold text-slate-800">{userName}</p>
+            </div>
           </div>
+          <button
+            onClick={() => onSwapRequest(skill.userId, skill)}
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-800"
+          >
+            Request Swap
+            <ArrowRight aria-hidden="true" className="h-4 w-4" />
+          </button>
         </div>
-
-        <div className="flex-grow">
-          <h3 className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{title}</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">{description}</p>
-        </div>
-
-        <button
-          onClick={() => onSwapRequest(skill.userId, skill)}
-          className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-300"
-        >
-          Request Swap
-        </button>
       </div>
-    </div>
+    </article>
   );
 }

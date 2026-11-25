@@ -1,4 +1,4 @@
-import { auth, db, storage } from "../firebase";
+import { auth, db } from "../firebase";
 import {
   addDoc,
   collection,
@@ -12,7 +12,6 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
-import { deleteObject, ref } from "firebase/storage";
 
 const appId = typeof __app_id !== "undefined" ? __app_id : "default-app-id";
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
@@ -73,7 +72,6 @@ export const sendMessage = async (sessionId, senderId, content, type) => {
   await updateUserLastActive(senderId);
 };
 
-// Uploads now go through the authenticated Express API instead of hardcoded localhost calls.
 export const uploadFile = async (file, sessionId) => {
   if (!file) {
     throw new Error("No file provided for upload.");
@@ -83,7 +81,6 @@ export const uploadFile = async (file, sessionId) => {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("sessionId", sessionId);
-  formData.append("senderId", auth.currentUser.uid);
 
   const response = await fetch(getApiUrl("/upload"), {
     method: "POST",
@@ -104,7 +101,6 @@ export const uploadAudio = async (blob, sessionId) => {
   const formData = new FormData();
   formData.append("file", blob, `audio-${Date.now()}.webm`);
   formData.append("sessionId", sessionId);
-  formData.append("senderId", auth.currentUser.uid);
 
   const response = await fetch(getApiUrl("/upload"), {
     method: "POST",
@@ -114,6 +110,25 @@ export const uploadAudio = async (blob, sessionId) => {
 
   const data = await parseJsonResponse(response);
   return data.url;
+};
+
+export const getAuthenticatedAssetUrl = async (assetUrl) => {
+  if (!assetUrl) {
+    throw new Error("No asset URL provided.");
+  }
+
+  const headers = await getAuthHeaders();
+  const response = await fetch(assetUrl, {
+    method: "GET",
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to load asset.");
+  }
+
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
 };
 
 export const deleteMessage = async (sessionId, messageId, currentUserId) => {
@@ -127,15 +142,6 @@ export const deleteMessage = async (sessionId, messageId, currentUserId) => {
   const message = snapshot.data();
   if (message.senderId !== currentUserId) {
     throw new Error("You can only delete your own messages.");
-  }
-
-  if (["file", "audio", "image", "pdf"].includes(message.type)) {
-    try {
-      const storageRef = ref(storage, message.content);
-      await deleteObject(storageRef);
-    } catch (error) {
-      console.warn("File deletion skipped:", error.message);
-    }
   }
 
   await deleteDoc(messageRef);
@@ -178,8 +184,8 @@ export async function createUserIfNotExist(user) {
   }
 }
 
-export const giveFeedback = async (sessionId, fromUserId, toUserId, rating, comment = "") => {
-  if (!sessionId || !fromUserId || !toUserId) {
+export const giveFeedback = async (sessionId, _fromUserId, toUserId, rating, comment = "") => {
+  if (!sessionId || !toUserId) {
     throw new Error("Invalid feedback data - missing IDs.");
   }
 
@@ -192,8 +198,9 @@ export const giveFeedback = async (sessionId, fromUserId, toUserId, rating, comm
     headers,
     body: JSON.stringify({
       sessionId,
-      userId: fromUserId,
-      feedback: { toUserId, rating, comment },
+      toUserId,
+      rating,
+      comment,
     }),
   });
 
@@ -212,48 +219,7 @@ export const onSessionSnapshot = (sessionId, callback) => {
   });
 };
 
-export const requestEndSession = async (sessionId, fromUserId) => {
-  const sessionRef = doc(db, `artifacts/${appId}/swaps/${sessionId}`);
-  const sessionSnap = await getDoc(sessionRef);
-
-  if (!sessionSnap.exists()) {
-    throw new Error("No session found to end.");
-  }
-
-  const data = sessionSnap.data();
-  const allUsers = [data.user1 || data.requesterId, data.user2 || data.receiverId].filter(Boolean);
-
-  await updateDoc(sessionRef, {
-    endRequest: {
-      from: fromUserId,
-      status: "pending",
-      requestedAt: serverTimestamp(),
-    },
-    user1: allUsers[0],
-    user2: allUsers[1],
-  });
-};
-
-export const cancelEndSession = async (sessionId) => {
-  const sessionRef = doc(db, `artifacts/${appId}/swaps/${sessionId}`);
-  await updateDoc(sessionRef, { endRequest: null });
-};
-
-export const startSession = async (sessionId, userIds) => {
-  const headers = await getAuthHeaders({
-    "Content-Type": "application/json",
-  });
-
-  const response = await fetch(getApiUrl("/startSession"), {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ sessionId, userIds }),
-  });
-
-  return parseJsonResponse(response);
-};
-
-export const confirmEndSession = async (sessionId, userIds = []) => {
+export const requestEndSession = async (sessionId) => {
   const headers = await getAuthHeaders({
     "Content-Type": "application/json",
   });
@@ -261,7 +227,49 @@ export const confirmEndSession = async (sessionId, userIds = []) => {
   const response = await fetch(getApiUrl("/confirmEndSession"), {
     method: "POST",
     headers,
-    body: JSON.stringify({ sessionId, userIds }),
+    body: JSON.stringify({ sessionId }),
+  });
+
+  return parseJsonResponse(response);
+};
+
+export const cancelEndSession = async (sessionId) => {
+  const headers = await getAuthHeaders({
+    "Content-Type": "application/json",
+  });
+
+  const response = await fetch(getApiUrl("/cancelEndSession"), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ sessionId }),
+  });
+
+  return parseJsonResponse(response);
+};
+
+export const startSession = async (sessionId) => {
+  const headers = await getAuthHeaders({
+    "Content-Type": "application/json",
+  });
+
+  const response = await fetch(getApiUrl("/startSession"), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ sessionId }),
+  });
+
+  return parseJsonResponse(response);
+};
+
+export const confirmEndSession = async (sessionId) => {
+  const headers = await getAuthHeaders({
+    "Content-Type": "application/json",
+  });
+
+  const response = await fetch(getApiUrl("/confirmEndSession"), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ sessionId }),
   });
 
   return parseJsonResponse(response);

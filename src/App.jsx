@@ -20,7 +20,7 @@ console.log("✅ App mounted");
 
 function App() {
   return (
-    <div className="min-h-screen flex flex-col bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-200">
+    <div className="min-h-screen flex flex-col bg-[#f8f7f3] text-slate-800">
       <Navbar />
       <main className="flex-grow">
         <Routes>

@@ -33,11 +33,11 @@ export default function ChatPageWrapper() {
   }, [sessionId]);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen bg-slate-900 text-white"><p>Loading Chat...</p></div>;
+    return <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-600"><p>Loading Chat...</p></div>;
   }
   
   if (error) {
-    return <div className="flex items-center justify-center h-screen bg-slate-900 text-red-400"><p>{error}</p></div>;
+    return <div className="flex h-screen items-center justify-center bg-slate-50 text-red-700"><p>{error}</p></div>;
   }
 
   // Once data is loaded, render the actual chat page and pass the details down as props.

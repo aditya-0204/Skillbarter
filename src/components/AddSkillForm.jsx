@@ -12,22 +12,30 @@ export default function AddSkillForm({ onAddSkill, onClose }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <input 
-        type="text" 
-        value={title} 
-        onChange={e => setTitle(e.target.value)} 
-        placeholder="Skill Title (e.g., Graphic Design)"
-        className="w-full p-3 border rounded-lg dark:bg-slate-700 dark:border-slate-600"
-      />
-      <textarea 
-        value={description} 
-        onChange={e => setDescription(e.target.value)} 
-        placeholder="Describe your skill..."
-        className="w-full p-3 border rounded-lg dark:bg-slate-700 dark:border-slate-600"
-        rows="4"
-      />
-      <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg">
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div>
+        <label htmlFor="skill-title" className="mb-1.5 block text-sm font-medium text-slate-700">Skill Title</label>
+        <input
+          id="skill-title"
+          type="text"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="e.g., Graphic Design"
+          className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-3 text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+        />
+      </div>
+      <div>
+        <label htmlFor="skill-description" className="mb-1.5 block text-sm font-medium text-slate-700">Description</label>
+        <textarea
+          id="skill-description"
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="Describe what you can teach..."
+          className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-3 text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+          rows="4"
+        />
+      </div>
+      <button type="submit" className="w-full rounded-lg bg-blue-700 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-blue-800">
         Add Skill
       </button>
     </form>

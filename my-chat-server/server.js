@@ -1,112 +1,156 @@
+const crypto = require("crypto");
 const express = require("express");
 const cors = require("cors");
-const multer = require("multer");
-const path = require("path");
+require("dotenv").config();
 const fs = require("fs");
+const path = require("path");
 const admin = require("firebase-admin");
+const multer = require("multer");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 
-const appId = "default-app-id";
-const PORT = process.env.PORT || 5000;
-const SESSION_COLLECTION = `artifacts/${appId}/swaps`;
-const USER_COLLECTION = `artifacts/${appId}/users`;
+const {
+  PORT = 5000,
+  FIREBASE_PROJECT_ID,
+  FIREBASE_CLIENT_EMAIL,
+  FIREBASE_PRIVATE_KEY,
+  ALLOWED_ORIGINS = "",
+  MAX_UPLOAD_BYTES = "10485760",
+} = process.env;
 
-function loadServiceAccount() {
-  const {
-    FIREBASE_PROJECT_ID,
-    FIREBASE_CLIENT_EMAIL,
-    FIREBASE_PRIVATE_KEY,
-  } = process.env;
+const REQUIRED_ENV_KEYS = [
+  "FIREBASE_PROJECT_ID",
+  "FIREBASE_CLIENT_EMAIL",
+  "FIREBASE_PRIVATE_KEY",
+];
 
-  if (FIREBASE_PROJECT_ID && FIREBASE_CLIENT_EMAIL && FIREBASE_PRIVATE_KEY) {
-    return {
-      projectId: FIREBASE_PROJECT_ID,
-      clientEmail: FIREBASE_CLIENT_EMAIL,
-      privateKey: FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-    };
+for (const envKey of REQUIRED_ENV_KEYS) {
+  if (!process.env[envKey]) {
+    throw new Error(`Missing required environment variable: ${envKey}`);
   }
-
-  // Local fallback for development machines that already use the JSON key file.
-  // Render should use environment variables instead of this file.
-  // eslint-disable-next-line global-require, import/no-dynamic-require
-  return require("./serviceAccountKey.json");
 }
 
 admin.initializeApp({
-  credential: admin.credential.cert(loadServiceAccount()),
+  credential: admin.credential.cert({
+    projectId: FIREBASE_PROJECT_ID,
+    clientEmail: FIREBASE_CLIENT_EMAIL,
+    privateKey: FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+  }),
 });
 
 const db = admin.firestore();
 const { FieldValue } = admin.firestore;
-
 const app = express();
-app.use(cors());
-app.use(express.json());
 
+const appId = "default-app-id";
+const SESSION_COLLECTION = `artifacts/${appId}/swaps`;
+const USER_COLLECTION = `artifacts/${appId}/users`;
 const uploadDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+const allowedOrigins = ALLOWED_ORIGINS.split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+const maxUploadBytes = Number(MAX_UPLOAD_BYTES);
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const sanitizedBaseName = path
-      .basename(file.originalname, ext)
-      .replace(/[^a-zA-Z0-9-_]/g, "_")
-      .slice(0, 80);
-    cb(null, `${sanitizedBaseName}-${Date.now()}${ext}`);
-  },
+const SHOP_CATALOG = Object.freeze({
+  "classic-skillswap-tshirt": { id: "classic-skillswap-tshirt", price: 1200 },
+  "classic-black-skillswap-tshirt": { id: "classic-black-skillswap-tshirt", price: 1200 },
+  "skillswap-water-bottle": { id: "skillswap-water-bottle", price: 800 },
+  "skillswap-hoodie": { id: "skillswap-hoodie", price: 2000 },
+  "classic-black-skillswap-hoodie": { id: "classic-black-skillswap-hoodie", price: 2000 },
 });
 
-const upload = multer({ storage });
+fs.mkdirSync(uploadDir, { recursive: true });
 
-app.use("/files", express.static(uploadDir));
-
-function getBearerToken(authorizationHeader) {
-  if (!authorizationHeader || typeof authorizationHeader !== "string") {
-    return null;
-  }
-
-  const [scheme, token] = authorizationHeader.split(" ");
-  if (scheme !== "Bearer" || !token) {
-    return null;
-  }
-
-  return token;
+function log(level, message, meta = {}) {
+  console.log(
+    JSON.stringify({
+      level,
+      message,
+      ...meta,
+      ts: new Date().toISOString(),
+    })
+  );
 }
 
-// Every privileged route verifies the Firebase ID token and receives req.user.
+app.use((req, res, next) => {
+  req.requestId = crypto.randomUUID();
+  res.setHeader("x-request-id", req.requestId);
+  next();
+});
+
+app.use(helmet());
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Origin not allowed by CORS"));
+    },
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Authorization", "Content-Type"],
+    credentials: false,
+  })
+);
+app.use(express.json({ limit: "100kb" }));
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+app.use("/upload", rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false }));
+app.use(
+  "/confirmEndSession",
+  rateLimit({ windowMs: 15 * 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false })
+);
+app.use("/giveFeedback", rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }));
+app.use("/purchase", rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }));
+
+function buildAbsoluteUrl(req, pathname) {
+  return `${req.protocol}://${req.get("host")}${pathname}`;
+}
+
+function getBearerToken(header) {
+  if (!header || typeof header !== "string") {
+    return null;
+  }
+
+  const [scheme, token] = header.split(" ");
+  return scheme === "Bearer" && token ? token : null;
+}
+
 async function authenticateUser(req, res, next) {
   try {
     const idToken = getBearerToken(req.headers.authorization);
     if (!idToken) {
-      return res.status(401).json({ error: "Missing or invalid Authorization header." });
+      return res.status(401).json({ error: "Missing bearer token." });
     }
 
-    req.user = await admin.auth().verifyIdToken(idToken);
+    req.user = await admin.auth().verifyIdToken(idToken, true);
     return next();
   } catch (error) {
-    console.error("Failed to verify Firebase ID token:", error);
+    log("warn", "Unauthorized request", { requestId: req.requestId, error: error.message });
     return res.status(401).json({ error: "Unauthorized." });
   }
 }
 
-async function loadSession(sessionId) {
-  const sessionRef = db.doc(`${SESSION_COLLECTION}/${sessionId}`);
-  const sessionSnap = await sessionRef.get();
-
-  if (!sessionSnap.exists) {
-    return null;
+async function loadSessionOrThrow(sessionId) {
+  const ref = db.doc(`${SESSION_COLLECTION}/${sessionId}`);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    const error = new Error("Session not found.");
+    error.statusCode = 404;
+    throw error;
   }
 
-  return {
-    ref: sessionRef,
-    data: sessionSnap.data(),
-  };
+  return { ref, data: snap.data() };
 }
 
-function getSessionUserIds(sessionData) {
+function getParticipantIds(sessionData) {
   return Array.from(
     new Set(
       [
@@ -120,118 +164,150 @@ function getSessionUserIds(sessionData) {
   );
 }
 
-function assertSessionMembership(sessionData, uid) {
-  return getSessionUserIds(sessionData).includes(uid);
+function extractSessionId(req) {
+  const bodySessionId = typeof req.body?.sessionId === "string" ? req.body.sessionId : null;
+  const paramSessionId = typeof req.params?.sessionId === "string" ? req.params.sessionId : null;
+  return bodySessionId || paramSessionId;
 }
 
-app.post("/upload", authenticateUser, upload.single("file"), (req, res) => {
-  const senderId = req.body?.senderId;
+async function requireSessionMember(req, res, next) {
+  try {
+    const sessionId = extractSessionId(req);
+    if (!sessionId) {
+      return res.status(400).json({ error: "Invalid sessionId." });
+    }
 
+    const session = await loadSessionOrThrow(sessionId);
+    const participantIds = getParticipantIds(session.data);
+    if (!participantIds.includes(req.user.uid)) {
+      return res.status(403).json({ error: "Forbidden." });
+    }
+
+    req.sessionId = sessionId;
+    req.session = session;
+    req.participantIds = participantIds;
+    return next();
+  } catch (error) {
+    log("error", "Session membership check failed", {
+      requestId: req.requestId,
+      error: error.message,
+    });
+    return res.status(error.statusCode || 500).json({ error: error.message || "Internal server error." });
+  }
+}
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => callback(null, uploadDir),
+    filename: (_req, file, callback) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      callback(null, `${crypto.randomUUID()}${ext}`);
+    },
+  }),
+  limits: {
+    fileSize: maxUploadBytes,
+    files: 1,
+  },
+  fileFilter: (_req, file, callback) => {
+    const allowedMimeTypes = new Set([
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+      "audio/webm",
+      "audio/mpeg",
+      "audio/wav",
+    ]);
+
+    if (!allowedMimeTypes.has(file.mimetype)) {
+      return callback(new Error("Unsupported file type."));
+    }
+
+    return callback(null, true);
+  },
+});
+
+app.get("/healthz", (_req, res) => {
+  res.json({ ok: true });
+});
+
+app.post("/upload", authenticateUser, upload.single("file"), requireSessionMember, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "No file uploaded." });
   }
 
-  if (senderId && senderId !== req.user.uid) {
-    return res.status(403).json({ error: "Sender ID does not match the authenticated user." });
-  }
-
-  const fileUrl = `${req.protocol}://${req.get("host")}/files/${req.file.filename}`;
-  return res.json({ filename: req.file.filename, url: fileUrl });
+  return res.status(201).json({
+    filename: req.file.filename,
+    url: buildAbsoluteUrl(req, `/download/${req.sessionId}/${req.file.filename}`),
+    mimeType: req.file.mimetype,
+    size: req.file.size,
+  });
 });
 
-app.post("/startSession", authenticateUser, async (req, res) => {
+app.get("/download/:sessionId/:filename", authenticateUser, requireSessionMember, async (req, res) => {
+  const safeName = path.basename(req.params.filename);
+  const fullPath = path.join(uploadDir, safeName);
+  if (!fs.existsSync(fullPath)) {
+    return res.status(404).json({ error: "File not found." });
+  }
+
+  return res.sendFile(fullPath);
+});
+
+app.post("/startSession", authenticateUser, requireSessionMember, async (req, res) => {
   try {
-    const { sessionId, userIds } = req.body;
-
-    if (!sessionId || !Array.isArray(userIds) || userIds.length < 2) {
-      return res.status(400).json({ error: "Missing sessionId or valid userIds array." });
-    }
-
-    if (!userIds.includes(req.user.uid)) {
-      return res.status(403).json({ error: "Authenticated user must be one of the session participants." });
-    }
-
-    const session = await loadSession(sessionId);
-    if (!session) {
-      return res.status(404).json({ error: "Session not found." });
-    }
-
-    if (!assertSessionMembership(session.data, req.user.uid)) {
-      return res.status(403).json({ error: "You are not allowed to start this session." });
-    }
-
-    if (session.data.status === "completed") {
+    const { ref, data } = req.session;
+    if (data.status === "completed") {
       return res.status(409).json({ error: "Completed sessions cannot be restarted." });
     }
 
-    const normalizedUsers = getSessionUserIds({
-      ...session.data,
-      users: userIds,
-    });
-
-    // Start state is server-owned now; no reward logic lives outside completion anymore.
-    await session.ref.set(
+    await ref.set(
       {
         status: "ongoing",
-        users: normalizedUsers,
+        users: req.participantIds,
         startedAt: FieldValue.serverTimestamp(),
         startedBy: req.user.uid,
       },
       { merge: true }
     );
 
-    return res.status(200).json({
+    return res.json({
       success: true,
-      sessionId,
+      sessionId: req.sessionId,
       status: "ongoing",
-      users: normalizedUsers,
+      users: req.participantIds,
     });
   } catch (error) {
-    console.error("Error in /startSession:", error);
+    log("error", "Failed to start session", {
+      requestId: req.requestId,
+      sessionId: req.sessionId,
+      error: error.message,
+    });
     return res.status(500).json({ error: "Internal server error starting session." });
   }
 });
 
-app.post("/confirmEndSession", authenticateUser, async (req, res) => {
+app.post("/confirmEndSession", authenticateUser, requireSessionMember, async (req, res) => {
   try {
-    const { sessionId } = req.body;
+    const sessionRef = req.session.ref;
+    const uid = req.user.uid;
 
-    if (!sessionId) {
-      return res.status(400).json({ error: "Missing sessionId." });
-    }
-
-    const sessionRef = db.doc(`${SESSION_COLLECTION}/${sessionId}`);
     const result = await db.runTransaction(async (transaction) => {
       const sessionSnap = await transaction.get(sessionRef);
-      if (!sessionSnap.exists) {
-        throw Object.assign(new Error("Session not found."), { statusCode: 404 });
-      }
-
       const sessionData = sessionSnap.data();
-      const participantIds = getSessionUserIds(sessionData);
+      const participantIds = getParticipantIds(sessionData);
+      const confirmedBy = Array.from(new Set([...(sessionData.confirmedBy || []), uid]));
+      const bothConfirmed = participantIds.every((participantId) => confirmedBy.includes(participantId));
 
-      if (!participantIds.includes(req.user.uid)) {
-        throw Object.assign(new Error("You are not allowed to complete this session."), { statusCode: 403 });
-      }
-
-      const confirmedBy = Array.from(
-        new Set([...(sessionData.confirmedBy || []), req.user.uid])
-      );
-      const bothConfirmed = participantIds.every((uid) => confirmedBy.includes(uid));
-
-      if (sessionData.status === "completed" || sessionData.rewardsGiven === true) {
+      if (sessionData.rewardsGiven === true) {
         transaction.update(sessionRef, {
           confirmedBy,
           status: "completed",
           endRequest: null,
         });
-
         return {
           success: true,
-          sessionId,
           status: "completed",
-          confirmedBy,
-          rewardedUsers: participantIds,
           alreadyCompleted: true,
         };
       }
@@ -240,39 +316,36 @@ app.post("/confirmEndSession", authenticateUser, async (req, res) => {
         transaction.update(sessionRef, {
           confirmedBy,
           endRequest: {
-            from: confirmedBy[0],
+            from: uid,
             status: "pending",
-            requestedAt:
-              sessionData.endRequest?.requestedAt || FieldValue.serverTimestamp(),
+            requestedAt: sessionData.endRequest?.requestedAt || FieldValue.serverTimestamp(),
           },
         });
-
         return {
           success: true,
-          sessionId,
           status: sessionData.status || "ongoing",
           confirmedBy,
           waiting: true,
         };
       }
 
-      // Completion and coin rewards are handled here transactionally and only once.
-      participantIds.forEach((uid) => {
-        const userRef = db.doc(`${USER_COLLECTION}/${uid}`);
+      for (const participantId of participantIds) {
         transaction.set(
-          userRef,
+          db.doc(`${USER_COLLECTION}/${participantId}`),
           {
             coins: FieldValue.increment(25),
-            swapsCompleted: FieldValue.increment(1),
+            stats: {
+              swapsCompleted: FieldValue.increment(1),
+            },
           },
           { merge: true }
         );
-      });
+      }
 
       transaction.update(sessionRef, {
         status: "completed",
         completedAt: FieldValue.serverTimestamp(),
-        completedBy: req.user.uid,
+        completedBy: uid,
         confirmedBy,
         endRequest: null,
         rewardsGiven: true,
@@ -281,49 +354,151 @@ app.post("/confirmEndSession", authenticateUser, async (req, res) => {
 
       return {
         success: true,
-        sessionId,
         status: "completed",
         confirmedBy,
         rewardedUsers: participantIds,
       };
     });
 
-    return res.status(200).json(result);
+    return res.json(result);
   } catch (error) {
-    const statusCode = error.statusCode || 500;
-    console.error("Error in /confirmEndSession:", error);
-    return res.status(statusCode).json({ error: error.message || "Internal server error." });
+    log("error", "Failed to confirm end session", {
+      requestId: req.requestId,
+      sessionId: req.sessionId,
+      error: error.message,
+    });
+    return res.status(500).json({ error: "Internal server error confirming end session." });
   }
 });
 
-app.post("/giveFeedback", async (req, res) => {
+app.post("/cancelEndSession", authenticateUser, requireSessionMember, async (req, res) => {
   try {
-    const { sessionId, userId, feedback } = req.body;
-
-    if (!sessionId || !userId || !feedback) {
-      return res.status(400).json({ error: "Invalid request" });
+    if (req.session.data.status === "completed") {
+      return res.status(409).json({ error: "Completed sessions cannot be changed." });
     }
 
-    const sessionRef = db.doc(`${SESSION_COLLECTION}/${sessionId}`);
-    const sessionSnap = await sessionRef.get();
+    await req.session.ref.set(
+      {
+        endRequest: null,
+        confirmedBy: [],
+      },
+      { merge: true }
+    );
 
-    if (!sessionSnap.exists) {
-      return res.status(404).json({ error: "Session not found" });
-    }
-
-    const sessionData = sessionSnap.data();
-    const updatedFeedback = {
-      ...(sessionData.feedback || {}),
-      [userId]: feedback,
-    };
-
-    await sessionRef.set({ feedback: updatedFeedback }, { merge: true });
-
-    return res.json({ success: true, feedback: updatedFeedback });
+    return res.json({ success: true, status: req.session.data.status || "ongoing" });
   } catch (error) {
-    console.error("Error in /giveFeedback:", error);
-    return res.status(500).json({ error: error.message });
+    log("error", "Failed to cancel end session", {
+      requestId: req.requestId,
+      sessionId: req.sessionId,
+      error: error.message,
+    });
+    return res.status(500).json({ error: "Internal server error cancelling end session." });
   }
 });
 
-app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+app.post("/giveFeedback", authenticateUser, requireSessionMember, async (req, res) => {
+  try {
+    const { toUserId, rating, comment = "" } = req.body;
+    if (!toUserId || !Number.isInteger(rating) || rating < 1 || rating > 5 || comment.length > 1000) {
+      return res.status(400).json({ error: "Invalid feedback payload." });
+    }
+
+    if (!req.participantIds.includes(toUserId) || toUserId === req.user.uid) {
+      return res.status(400).json({ error: "Invalid feedback target." });
+    }
+
+    if (req.session.data.status !== "completed") {
+      return res.status(409).json({ error: "Feedback allowed only after completion." });
+    }
+
+    if (req.session.data.feedback?.[req.user.uid]) {
+      return res.status(409).json({ error: "Feedback already submitted." });
+    }
+
+    await req.session.ref.set(
+      {
+        feedback: {
+          ...(req.session.data.feedback || {}),
+          [req.user.uid]: {
+            toUserId,
+            rating,
+            comment,
+            createdAt: FieldValue.serverTimestamp(),
+          },
+        },
+      },
+      { merge: true }
+    );
+
+    return res.json({ success: true });
+  } catch (error) {
+    log("error", "Failed to submit feedback", {
+      requestId: req.requestId,
+      sessionId: req.sessionId,
+      error: error.message,
+    });
+    return res.status(500).json({ error: "Internal server error submitting feedback." });
+  }
+});
+
+app.post("/purchase", authenticateUser, async (req, res) => {
+  try {
+    const { itemId } = req.body || {};
+    const item = SHOP_CATALOG[itemId];
+    if (!item) {
+      return res.status(400).json({ error: "Unknown shop item." });
+    }
+
+    const userRef = db.doc(`${USER_COLLECTION}/${req.user.uid}`);
+    const result = await db.runTransaction(async (transaction) => {
+      const userSnap = await transaction.get(userRef);
+      if (!userSnap.exists) {
+        throw new Error("User profile not found.");
+      }
+
+      const userData = userSnap.data();
+      const currentCoins = Number(userData.coins || 0);
+      if (currentCoins < item.price) {
+        const error = new Error("Insufficient coins.");
+        error.statusCode = 409;
+        throw error;
+      }
+
+      transaction.update(userRef, {
+        coins: currentCoins - item.price,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      return { success: true, remainingCoins: currentCoins - item.price };
+    });
+
+    return res.json(result);
+  } catch (error) {
+    log("error", "Purchase failed", {
+      requestId: req.requestId,
+      userId: req.user?.uid,
+      error: error.message,
+    });
+    return res.status(error.statusCode || 500).json({ error: error.message || "Internal server error." });
+  }
+});
+
+app.use((error, _req, res, _next) => {
+  if (error instanceof multer.MulterError) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  if (error?.message === "Unsupported file type.") {
+    return res.status(400).json({ error: error.message });
+  }
+
+  if (error?.message === "Origin not allowed by CORS") {
+    return res.status(403).json({ error: error.message });
+  }
+
+  return res.status(500).json({ error: "Internal server error." });
+});
+
+app.listen(PORT, () => {
+  log("info", "API listening", { port: PORT });
+});

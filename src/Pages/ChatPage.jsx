@@ -1,68 +1,34 @@
-// ChatPage.jsx (Full Code)
-
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Eye, FileText, Mic, Paperclip, Send, Square, Star, Trash2, X } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext.jsx";
-import { useCoins } from "../store/coinStore.jsx";
 import {
-  sendMessage,
-  onMessagesSnapshot,
-  deleteMessage,
-  getUser,
-  updateUserLastActive,
-  createUserIfNotExist,
-  uploadFile,
-  uploadAudio,
-  startSession, // <-- This is the new, simpler function
-  giveFeedback,
-  onSessionSnapshot,
-  requestEndSession,
   cancelEndSession,
-  confirmEndSession, // <-- This is the new function
+  confirmEndSession,
+  createUserIfNotExist,
+  deleteMessage,
+  getAuthenticatedAssetUrl,
+  getUser,
+  giveFeedback,
+  onMessagesSnapshot,
+  onSessionSnapshot,
+  sendMessage,
+  startSession,
+  updateUserLastActive,
+  uploadAudio,
+  uploadFile,
 } from "../services/sessionService.js";
 
-// --- (All SVG Icons and formatTime helper are UNCHANGED) ---
-const Icon = ({ path, className = "w-6 h-6" }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    className={className}
-  >
-    <path d={path} />
-  </svg>
-);
-const PaperClipIcon = () => (
-  <Icon path="M18.375 2.25c-2.438 0-4.438 1.964-4.438 4.375v9.75c0 1.243.984 2.25 2.188 2.25s2.188-1.007 2.188-2.25V8.25c0-.582-.46-1.031-1.031-1.031S16.25 7.668 16.25 8.25v8.25c0 2.06-1.655 3.75-3.688 3.75s-3.688-1.69-3.688-3.75V6.625c0-2.84 2.3-5.125 5.125-5.125s5.125 2.285 5.125 5.125v9.75c0 .414-.336.75-.75.75s-.75-.336-.75-.75V6.625c0-2.02-1.63-3.625-3.625-3.625S10 4.605 10 6.625v9.75c0 2.877 2.34 5.25 5.25 5.25s5.25-2.373 5.25-5.25V6.625C20.5 4.08 18.582 2.25 16.125 2.25h-2.25z" />
-);
-const PaperAirplaneIcon = () => (
-  <Icon path="M6.428 3.428a.75.75 0 00-.165 1.08l2.914 4.37-5.25 1.179a.75.75 0 00-.31 1.341l10.5 4.667a.75.75 0 00.932-.932L9.818 4.547a.75.75 0 00-1.341-.31L4.109 9.49l-4.37-2.914a.75.75 0 00-.165 1.08z" />
-);
-const MicrophoneIcon = () => (
-  <Icon path="M12 18.75a6 6 0 006-6v-1.5a6 6 0 00-12 0v1.5a6 6 0 006 6zM12 2.25a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 004.5 0V4.5A2.25 2.25 0 0012 2.25z" />
-);
-const StopIcon = () => (
-  <Icon path="M5.25 5.25A2.25 2.25 0 003 7.5v9A2.25 2.25 0 005.25 18.75h9a2.25 2.25 0 002.25-2.25v-9A2.25 2.25 0 0014.25 5.25h-9z" />
-);
-const TrashIcon = () => (
-  <Icon path="M6 7h12M9 7v10m6-10v10M4 7h16l-1.5 12.5A2.25 2.25 0 0116.25 22.5h-8.5a2.25 2.25 0 01-2.25-2.25L4 7zm5-3h6v2H9V4z" />
-);
-const EyeIcon = () => (
-  <Icon path="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12a4.5 4.5 0 110-9 4.5 4.5 0 010 9zm0-7.5a3 3 0 100 6 3 3 0 000-6z" />
-);
 const formatTime = (timestamp) => {
   if (!timestamp || !timestamp.toDate) return "";
-  return timestamp
-    .toDate()
-    .toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
+  return timestamp.toDate().toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 };
 
 export default function ChatPage({ session }) {
   const { currentUser } = useAuth();
-  const { coins } = useCoins();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -77,10 +43,8 @@ export default function ChatPage({ session }) {
   const [feedbackComment, setFeedbackComment] = useState("");
   const [sessionInfo, setSessionInfo] = useState(null);
   const [otherUserId, setOtherUserId] = useState(null);
-  
-
-  
-  const [isEnding, setIsEnding] = useState(false); // This is just for the "Ending..." button text
+  const [assetUrls, setAssetUrls] = useState({});
+  const [isEnding, setIsEnding] = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
@@ -89,15 +53,16 @@ export default function ChatPage({ session }) {
 
   const sessionId = session?.id;
   const otherUser = session?.otherParty;
+  const resolvedOtherUserId = otherUser?.id || otherUserId;
 
-  // --- (All useEffects and other functions are UNCHANGED until handleConfirmEnd) ---
   const fetchCurrentUser = useCallback(async () => {
     if (!currentUser?.uid) return;
     let userData = await getUser(currentUser.uid);
     if (!userData) {
-      await createUserIfNotExist(currentUser, { stars: 5, coins: 0 });
+      await createUserIfNotExist(currentUser);
       userData = await getUser(currentUser.uid);
     }
+
     setCurrentUserInfo({
       ...userData,
       stars: userData?.stars ?? 3,
@@ -117,11 +82,8 @@ export default function ChatPage({ session }) {
   useEffect(() => {
     if (!sessionId) return;
     const unsubscribe = onSessionSnapshot(sessionId, (data) => {
-      setSessionInfo((prevSessionInfo) => {
-        if (
-          data?.status === "completed" &&
-          prevSessionInfo?.status !== "completed"
-        ) {
+      setSessionInfo((previousSessionInfo) => {
+        if (data?.status === "completed" && previousSessionInfo?.status !== "completed") {
           setFeedbackOpen(true);
         }
         return data;
@@ -129,12 +91,56 @@ export default function ChatPage({ session }) {
     });
     return () => unsubscribe();
   }, [sessionId]);
+
   useEffect(() => {
-  if (sessionInfo?.users && currentUser) {
-    const other = sessionInfo.users.find((u) => u !== currentUser.uid);
-    if (other) setOtherUserId(other);
-  }
-}, [sessionInfo, currentUser]);
+    if (sessionInfo?.users && currentUser) {
+      const other = sessionInfo.users.find((userId) => userId !== currentUser.uid);
+      if (other) {
+        setOtherUserId(other);
+      }
+    }
+  }, [sessionInfo, currentUser]);
+
+  useEffect(() => {
+    let isActive = true;
+    const createdUrls = [];
+    const attachmentMessages = messages.filter(
+      (msg) => ["file", "audio", "image", "pdf"].includes(msg.type) && msg.content
+    );
+
+    if (attachmentMessages.length === 0) {
+      setAssetUrls({});
+      return () => {};
+    }
+
+    const loadAssets = async () => {
+      const entries = await Promise.all(
+        attachmentMessages.map(async (msg) => {
+          try {
+            const objectUrl = await getAuthenticatedAssetUrl(msg.content);
+            createdUrls.push(objectUrl);
+            return [msg.id, objectUrl];
+          } catch (assetError) {
+            console.error("Failed to resolve protected asset:", assetError);
+            return [msg.id, null];
+          }
+        })
+      );
+
+      if (!isActive) {
+        return;
+      }
+
+      setAssetUrls(Object.fromEntries(entries.filter(([, value]) => Boolean(value))));
+    };
+
+    loadAssets();
+
+    return () => {
+      isActive = false;
+      createdUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [messages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -142,27 +148,37 @@ export default function ChatPage({ session }) {
 
   useEffect(() => {
     if (!currentUser) return;
-    updateUserLastActive(currentUser.uid, {
-      name: currentUser.displayName,
-      email: currentUser.email,
-    });
+
+    updateUserLastActive(currentUser.uid);
     const interval = setInterval(() => {
-      updateUserLastActive(currentUser.uid, {
-        name: currentUser.displayName,
-        email: currentUser.email,
-      });
+      updateUserLastActive(currentUser.uid);
     }, 30000);
+
     return () => clearInterval(interval);
   }, [currentUser]);
 
   useEffect(() => {
     const fetchOther = async () => {
-      if (!otherUser?.uid) return;
-      const userData = await getUser(otherUser.uid);
+      if (!resolvedOtherUserId) return;
+      const userData = await getUser(resolvedOtherUserId);
       setOtherUserInfo(userData);
     };
+
     fetchOther();
-  }, [otherUser, messages]);
+  }, [resolvedOtherUserId, messages]);
+
+  useEffect(() => {
+    const initSession = async () => {
+      if (!sessionId || !currentUser || !resolvedOtherUserId) {
+        return;
+      }
+
+      await startSession(sessionId);
+      fetchCurrentUser();
+    };
+
+    initSession();
+  }, [sessionId, currentUser, resolvedOtherUserId, fetchCurrentUser]);
 
   const getUserStatus = () => {
     if (!otherUserInfo?.lastActive) return "";
@@ -170,6 +186,8 @@ export default function ChatPage({ session }) {
     const diff = Date.now() - last.getTime();
     return diff < 2 * 60 * 1000 ? "" : `Last seen ${last.toLocaleString()}`;
   };
+
+  const getRenderableAssetUrl = (msg) => assetUrls[msg.id] || msg.content;
 
   const handleSend = async () => {
     if (!input.trim() || sending) return;
@@ -188,19 +206,21 @@ export default function ChatPage({ session }) {
   const handleDelete = async (msg) => {
     if (msg.senderId !== currentUser.uid) return;
     if (!window.confirm("Delete this message?")) return;
-    setDeleting((prev) => ({ ...prev, [msg.id]: true }));
+
+    setDeleting((previous) => ({ ...previous, [msg.id]: true }));
     try {
       await deleteMessage(sessionId, msg.id, currentUser.uid);
     } catch {
       setError("Failed to delete message.");
     } finally {
-      setDeleting((prev) => ({ ...prev, [msg.id]: false }));
+      setDeleting((previous) => ({ ...previous, [msg.id]: false }));
     }
   };
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
     if (!file || !sessionId || !currentUser) return;
+
     setSending(true);
     setError("");
     try {
@@ -209,23 +229,30 @@ export default function ChatPage({ session }) {
       if (file.type.startsWith("image/")) type = "image";
       else if (file.type === "application/pdf") type = "pdf";
       else if (file.type.startsWith("audio/")) type = "audio";
+
       await sendMessage(sessionId, currentUser.uid, url, type);
-    } catch (err) {
-      setError(err.message);
+    } catch (uploadError) {
+      setError(uploadError.message);
     } finally {
       setSending(false);
-      e.target.value = "";
+      event.target.value = "";
     }
   };
 
   const startRecording = async () => {
-    if (!navigator.mediaDevices) return setError("Audio not supported.");
+    if (!navigator.mediaDevices) {
+      setError("Audio not supported.");
+      return;
+    }
+
     setRecording(true);
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaRecorderRef.current = new MediaRecorder(stream);
     recordedChunksRef.current = [];
-    mediaRecorderRef.current.ondataavailable = (e) => {
-      if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+    mediaRecorderRef.current.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        recordedChunksRef.current.push(event.data);
+      }
     };
     mediaRecorderRef.current.onstop = async () => {
       setSending(true);
@@ -233,8 +260,8 @@ export default function ChatPage({ session }) {
         const blob = new Blob(recordedChunksRef.current, { type: "audio/webm" });
         const url = await uploadAudio(blob, sessionId);
         await sendMessage(sessionId, currentUser.uid, url, "audio");
-      } catch (err) {
-        setError(err.message || "Audio upload failed.");
+      } catch (uploadError) {
+        setError(uploadError.message || "Audio upload failed.");
       } finally {
         setSending(false);
       }
@@ -246,248 +273,209 @@ export default function ChatPage({ session }) {
     mediaRecorderRef.current?.stop();
     setRecording(false);
   };
-  
-  // In ChatPage.jsx
-  useEffect(() => {
-    const initSession = async () => {
-      if (sessionId && currentUser && otherUser?.uid) {
-        // This now calls your server with the user array
-        await startSession(sessionId, [currentUser.uid, otherUser.uid]); 
-        fetchCurrentUser();
-      }
-    };
-    initSession();
-  }, [sessionId, currentUser, otherUser, fetchCurrentUser]);
 
-  // ChatPage.jsx (replace handleRequestEndSession)
-const handleEndSessionClicked = async () => {
-  // optional: confirm with the user before ending
-  if (!window.confirm("Do you want to end this session now? Both users will receive coins once the other confirms.")) return;
+  const handleEndSessionClicked = async () => {
+    if (!window.confirm("Do you want to end this session now? Both users will receive coins once the other confirms.")) {
+      return;
+    }
 
-  try {
+    try {
+      setIsEnding(true);
+      await confirmEndSession(sessionId);
+    } catch (submitError) {
+      console.error("Failed to send confirm end:", submitError);
+      alert(`Failed to confirm end: ${submitError.message || submitError}`);
+    } finally {
+      setIsEnding(false);
+    }
+  };
+
+  const handleConfirmEnd = async () => {
+    if (isEnding) return;
+
     setIsEnding(true);
-    // call server with *only* the current user's id
-    await confirmEndSession(sessionId, [currentUser.uid]);
-    // optionally show short success message — actual 'completed' will be reflected by the onSnapshot listener
-    console.log("✔️ Confirmed end request sent for", currentUser.uid);
-  } catch (err) {
-    console.error("Failed to send confirm end:", err);
-    alert("Failed to confirm end: " + (err.message || err));
-  } finally {
-    setIsEnding(false);
-  }
-};
-
-
-  
-  // --- *** THIS FUNCTION IS UPDATED *** ---
-// In ChatPage.jsx
-  const handleConfirmEnd = async () => {
-    if (isEnding) return; 
-
-    setIsEnding(true);
-    try {
-      // This now calls your server with the user array
-      await confirmEndSession(sessionId, [currentUser.uid, otherUser.uid]);
-      
-    } catch (err) {
-      console.error("Error confirming end request:", err);
-      alert(`Failed to confirm end: ${err.message}`);
-    } finally {
-      setIsEnding(false);
-    }
-  };
-
+    try {
+      await confirmEndSession(sessionId);
+    } catch (submitError) {
+      console.error("Error confirming end request:", submitError);
+      alert(`Failed to confirm end: ${submitError.message}`);
+    } finally {
+      setIsEnding(false);
+    }
+  };
 
   const handleCancelEnd = async () => {
     try {
       await cancelEndSession(sessionId);
-    } catch (err) {
-      alert(`Error cancelling: ${err.message}`);
+    } catch (cancelError) {
+      alert(`Error cancelling: ${cancelError.message}`);
     }
   };
 
-const handleFeedbackSubmit = async () => {
-  if (!feedbackRating) {
-    alert("Please select a rating before submitting!");
-    return;
-  }
-
-  try {
-    // 🔍 Your Firestore structure uses user1/user2 and requesterId/receiverId
-    const userArray = [
-      sessionInfo?.user1,
-      sessionInfo?.user2,
-      sessionInfo?.requesterId,
-      sessionInfo?.receiverId,
-    ].filter(Boolean);
-
-    console.log("🧩 Checking userArray:", userArray);
-
-    const otherId = userArray.find((id) => id !== currentUser?.uid);
-
-    if (!otherId) {
-      console.warn("⚠️ Could not find other user — fallback attempt failed");
-      console.log("sessionInfo:", sessionInfo);
-      alert("⚠️ Could not find other user — session may have ended already.");
+  const handleFeedbackSubmit = async () => {
+    if (!feedbackRating) {
+      alert("Please select a rating before submitting!");
       return;
     }
 
-    console.log("💬 Submitting feedback for:", {
-      sessionId,
-      from: currentUser.uid,
-      to: otherId,
-    });
+    if (!resolvedOtherUserId) {
+      alert("Could not determine the other participant for this session.");
+      return;
+    }
 
-    await giveFeedback(
-      sessionId,
-      currentUser.uid,
-      otherId,
-      feedbackRating,
-      feedbackComment
-    );
+    try {
+      await giveFeedback(
+        sessionId,
+        currentUser.uid,
+        resolvedOtherUserId,
+        feedbackRating,
+        feedbackComment
+      );
 
-    alert("✅ Feedback submitted successfully!");
-    setFeedbackOpen(false);
-    setFeedbackRating(0);
-    setFeedbackComment("");
-  } catch (err) {
-    console.error("❌ Feedback error (raw):", err);
-    alert(`❌ Failed to submit feedback: ${err?.message || JSON.stringify(err)}`);
-  }
-};
+      alert("Feedback submitted successfully!");
+      setFeedbackOpen(false);
+      setFeedbackRating(0);
+      setFeedbackComment("");
+    } catch (feedbackError) {
+      console.error("Feedback error:", feedbackError);
+      alert(`Failed to submit feedback: ${feedbackError?.message || JSON.stringify(feedbackError)}`);
+    }
+  };
 
-
-
-
-  // --- Helper variables (unchanged) ---
   const isSessionCompleted = sessionInfo?.status === "completed";
   const endRequest = sessionInfo?.endRequest;
   const isWaitingForOther =
-    endRequest?.status === "pending" && endRequest?.from === currentUser.uid;
+    endRequest?.status === "pending" && endRequest?.from === currentUser?.uid;
   const isBeingAsked =
-    endRequest?.status === "pending" && endRequest?.from !== currentUser.uid;
+    endRequest?.status === "pending" && endRequest?.from !== currentUser?.uid;
 
-  if (!session || !currentUser)
-    return <div className="text-white p-4">Loading chat...</div>;
+  if (!session || !currentUser) {
+    return <div className="mx-auto my-6 max-w-5xl rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">Loading chat...</div>;
+  }
 
-  // --- (All JSX is UNCHANGED from the last version) ---
   return (
-    <div className="flex flex-col h-screen bg-slate-800 text-white">
-      {/* Header */}
-      <header className="flex items-center p-3 border-b border-slate-700 bg-slate-700 shadow-md justify-between">
-        <div className="flex items-center">
+    <div className="mx-auto my-6 flex h-screen max-h-[78vh] min-h-0 w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-sm">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
+        <div className="flex min-w-0 items-center">
           <img
-            src={`https://placehold.co/40x40/7e22ce/ffffff?text=${
-              otherUser?.name?.[0] || "?"
-            }`}
-            alt="avatar"
-            className="w-10 h-10 rounded-full mr-3"
+            src={otherUserInfo?.avatar || otherUserInfo?.photoURL || `https://placehold.co/40x40/e2e8f0/334155?text=${otherUser?.name?.[0] || "?"}`}
+            alt={`${otherUser?.name || "Session partner"} avatar`}
+            className="mr-3 h-11 w-11 shrink-0 rounded-full border border-slate-200 object-cover"
           />
-          <div>
-            <h2 className="text-lg font-bold">{otherUser?.name || "Chat"}</h2>
-            <p className="text-xs text-green-400">{getUserStatus()}</p>
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-bold text-slate-900">{otherUser?.name || "Chat"}</h2>
+            <p className="mt-0.5 text-xs text-slate-500">{getUserStatus() || "Active recently"}</p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-sm">Your Coins: {coins ?? 0} 🪙</p>
-          <p className="text-sm">Your Stars: {currentUserInfo?.stars || 0} ⭐</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600">
+            <Star aria-hidden="true" className="h-4 w-4 fill-amber-400 text-amber-500" />
+            {currentUserInfo?.stars || 0} Stars
+          </span>
+          <button
+            onClick={handleEndSessionClicked}
+            className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isSessionCompleted || sessionInfo?.confirmedBy?.includes(currentUser.uid) || isEnding}
+          >
+            {sessionInfo?.status === "completed"
+              ? "Session Ended"
+              : sessionInfo?.confirmedBy?.includes(currentUser.uid)
+                ? "Waiting for other user"
+                : isEnding
+                  ? "Ending..."
+                  : "End Session"}
+          </button>
         </div>
       </header>
 
-      {/* Messages */}
-      <main className="flex-1 overflow-y-auto p-2 bg-slate-900">
-        <div className="flex flex-col space-y-2">
+      <main className="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-6">
+        <div className="flex flex-col space-y-3">
           {messages.map((msg) => (
             <div
               key={msg.id}
-              className={`flex items-end max-w-lg transition-opacity duration-300 ${
+              className={`flex w-full flex-col transition-opacity duration-300 ${
                 deleting[msg.id] ? "opacity-0" : "opacity-100"
-              } ${
-                msg.senderId === currentUser.uid ? "self-end" : "self-start"
-              }`}
+              } ${msg.senderId === currentUser.uid ? "items-end" : "items-start"}`}
             >
               <div
-                className={`relative group px-3 py-2 rounded-xl ${
+                className={`group relative max-w-md rounded-2xl px-3.5 py-2 text-sm ${
                   msg.senderId === currentUser.uid
-                    ? "bg-purple-700 rounded-br-none"
-                    : "bg-slate-600 rounded-bl-none"
+                    ? "rounded-br-sm bg-blue-700 text-white"
+                    : "rounded-bl-sm border border-slate-200 bg-white text-slate-800 shadow-sm"
                 }`}
               >
                 {msg.senderId === currentUser.uid && !isSessionCompleted && (
                   <button
                     onClick={() => handleDelete(msg)}
-                    className="absolute -top-2 -right-2 p-1 bg-black bg-opacity-60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute -right-2 -top-2 rounded-full border border-slate-200 bg-white p-1 text-slate-600 opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
                     title="Delete message"
+                    aria-label="Delete message"
                   >
-                    <TrashIcon className="w-4 h-4 text-white" />
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />
                   </button>
                 )}
-                {msg.type === "text" && <p className="text-sm">{msg.content}</p>}
+                {msg.type === "text" && <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
                 {(msg.type === "image" ||
                   msg.type === "pdf" ||
                   msg.type === "audio" ||
                   msg.type === "file") && (
-                  <div className="relative group">
+                  <div className="flex items-end gap-2">
                     {msg.type === "image" && (
                       <img
-                        src={msg.content}
-                        alt="img"
-                        className="max-w-xs rounded"
+                        src={getRenderableAssetUrl(msg)}
+                        alt="attachment"
+                        className="max-w-xs rounded-lg"
                       />
                     )}
                     {msg.type === "pdf" && (
                       <iframe
-                        src={msg.content}
+                        src={getRenderableAssetUrl(msg)}
                         title="pdf"
-                        className="w-64 h-48 border rounded"
+                        className="h-48 w-64 rounded-lg border border-slate-200"
                       />
                     )}
                     {msg.type === "audio" && (
                       <audio
                         controls
-                        src={msg.content}
-                        className="max-w-xs h-10"
+                        src={getRenderableAssetUrl(msg)}
+                        className="h-10 max-w-xs"
                       />
                     )}
                     {msg.type === "file" && (
-                      <p className="text-sm underline">
-                        {msg.content.split("/").pop()}
-                      </p>
+                      <div className="flex min-w-0 max-w-xs items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-800">
+                          <FileText aria-hidden="true" className="h-4 w-4" />
+                        </span>
+                        <p className="max-w-xs truncate font-medium text-slate-700">{msg.content.split("/").pop()}</p>
+                      </div>
                     )}
                     <button
                       onClick={() =>
                         setPreview({
                           open: true,
-                          url: msg.content,
+                          url: getRenderableAssetUrl(msg),
                           type: msg.type,
                         })
                       }
-                      className="absolute bottom-1 right-1 p-2 bg-purple-600 hover:bg-purple-500 rounded-full shadow-md opacity-100 transition-all text-white flex items-center justify-center"
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100"
                       title="Preview"
+                      aria-label="Preview attachment"
                     >
-                      <EyeIcon />
+                      <Eye aria-hidden="true" className="h-4 w-4" />
                     </button>
                   </div>
                 )}
-                <p className="text-xs text-slate-300 text-right mt-1">
-                  {formatTime(msg.createdAt)}
-                </p>
               </div>
+              <p className="mt-1 text-xs text-slate-400">{formatTime(msg.createdAt)}</p>
             </div>
           ))}
           <div ref={messagesEndRef} />
         </div>
       </main>
 
-      {error && (
-        <div className="p-2 text-center text-sm bg-red-800 text-red-200">
-          {error}
-        </div>
-      )}
+      {error && <div className="border-t border-red-200 bg-red-50 p-2 text-center text-sm text-red-700">{error}</div>}
 
-      {/* Input */}
-      <footer className="p-3 bg-slate-700 border-t border-slate-600">
+      <footer className="border-t border-slate-200 bg-white p-4">
         <div className="flex items-center gap-2">
           <input
             type="file"
@@ -499,24 +487,21 @@ const handleFeedbackSubmit = async () => {
           <button
             onClick={() => fileInputRef.current.click()}
             disabled={sending || isSessionCompleted}
-            className="p-2 rounded-full hover:bg-slate-600 disabled:opacity-50"
+            aria-label="Attach a file"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
           >
-            <PaperClipIcon />
+            <Paperclip aria-hidden="true" className="h-5 w-5" />
           </button>
           <textarea
             rows="1"
-            className="flex-1 p-2 bg-slate-800 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+            className="min-w-0 flex-1 resize-none rounded-lg border border-slate-300 bg-slate-50 px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={
-              isSessionCompleted
-                ? "This session has ended."
-                : "Type a message..."
-            }
+            onChange={(event) => setInput(event.target.value)}
+            placeholder={isSessionCompleted ? "This session has ended." : "Type a message..."}
             disabled={isSessionCompleted}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
                 handleSend();
               }
             }}
@@ -525,80 +510,57 @@ const handleFeedbackSubmit = async () => {
             <button
               onClick={handleSend}
               disabled={sending || isSessionCompleted}
-              className="p-2 rounded-full bg-purple-700 hover:bg-purple-600 disabled:opacity-50"
+              aria-label="Send message"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-700 text-white transition-colors hover:bg-blue-800 disabled:opacity-50"
             >
-              <PaperAirplaneIcon />
+              <Send aria-hidden="true" className="h-5 w-5" />
             </button>
           ) : (
             <button
               onClick={recording ? stopRecording : startRecording}
               disabled={sending || isSessionCompleted}
-              className={`p-2 rounded-full ${
-                recording ? "bg-red-600" : "bg-purple-700"
-              } hover:bg-purple-600 disabled:opacity-50`}
+              aria-label={recording ? "Stop recording" : "Start recording"}
+              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg disabled:opacity-50 ${recording ? "bg-red-600 text-white hover:bg-red-700" : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}
             >
-              {recording ? <StopIcon /> : <MicrophoneIcon />}
+              {recording ? <Square aria-hidden="true" className="h-4 w-4" /> : <Mic aria-hidden="true" className="h-5 w-5" />}
             </button>
           )}
         </div>
-
-        <div className="flex justify-center mt-2">
-          <button
-  onClick={handleEndSessionClicked}
-  className="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded disabled:bg-gray-500"
-  disabled={isSessionCompleted || sessionInfo?.confirmedBy?.includes(currentUser.uid) || isEnding}
->
-  {sessionInfo?.status === "completed"
-    ? "Session Ended"
-    : sessionInfo?.confirmedBy?.includes(currentUser.uid)
-    ? "Waiting for other user"
-    : isEnding
-    ? "Ending..."
-    : "End Session"}
-</button>
-
-        </div>
       </footer>
 
-      {/* Feedback Modal */}
       {feedbackOpen && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-70 flex items-center justify-center p-4">
-          <div className="bg-slate-800 p-6 rounded-lg max-w-md w-full">
-            <h2 className="text-lg font-bold mb-4 text-white">
-              Give Feedback
-            </h2>
-            <div className="flex gap-1 mb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 bg-opacity-50 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 border-t-4 border-t-blue-700 bg-white p-6 shadow-xl">
+            <h2 className="mb-4 text-xl font-bold text-slate-900">Give Feedback</h2>
+            <div className="mb-3 flex gap-1">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}
                   onClick={() => setFeedbackRating(star)}
-                  className={`text-2xl ${
-                    feedbackRating >= star
-                      ? "text-yellow-400"
-                      : "text-gray-400"
-                  }`}
+                  aria-label={`${star} star${star === 1 ? '' : 's'}`}
+                  className={`rounded p-1 transition-colors ${feedbackRating >= star ? "text-amber-500" : "text-slate-300 hover:text-amber-400"}`}
                 >
-                  ★
+                  <Star aria-hidden="true" className="h-7 w-7 fill-current" />
                 </button>
               ))}
             </div>
             <textarea
-              className="w-full p-2 rounded mb-3 bg-slate-700 text-white"
+              className="mb-3 w-full rounded-lg border border-slate-300 bg-slate-50 p-3 text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
               rows="3"
               placeholder="Optional comment"
               value={feedbackComment}
-              onChange={(e) => setFeedbackComment(e.target.value)}
+              onChange={(event) => setFeedbackComment(event.target.value)}
             />
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setFeedbackOpen(false)}
-                className="px-4 py-2 rounded bg-gray-500 hover:bg-gray-400 text-white"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleFeedbackSubmit}
-                className="px-4 py-2 rounded bg-purple-600 hover:bg-purple-500 text-white"
+                className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-800"
               >
                 Submit
               </button>
@@ -607,30 +569,27 @@ const handleFeedbackSubmit = async () => {
         </div>
       )}
 
-      {/* Modal for user being asked to end session */}
       {isBeingAsked && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-70 flex items-center justify-center p-4">
-          <div className="bg-slate-800 p-6 rounded-lg max-w-md w-full text-white">
-            <h2 className="text-lg font-bold mb-4">Confirm End Session</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 bg-opacity-50 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 border-t-4 border-t-blue-700 bg-white p-6 text-slate-800 shadow-xl">
+            <h2 className="mb-4 text-xl font-bold text-slate-900">Confirm End Session</h2>
             <p className="mb-4">
-              {otherUser?.name || "The other user"} wants to end this session.
-              Do you agree?
+              {otherUser?.name || "The other user"} wants to end this session. Do you agree?
             </p>
-            <p className="text-sm mb-4">
-              If you agree, the session will end, and you will both be awarded 25
-              coins.
+            <p className="mb-4 text-sm">
+              If you agree, the session will end, and you will both be awarded 25 coins.
             </p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={handleCancelEnd}
-                className="px-4 py-2 rounded bg-gray-500 hover:bg-gray-400 text-white disabled:opacity-50"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 disabled={isEnding}
               >
                 No, Continue
               </button>
               <button
                 onClick={handleConfirmEnd}
-                className="px-4 py-2 rounded bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50"
+                className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
                 disabled={isEnding}
               >
                 {isEnding ? "Ending..." : "Yes, End Session"}
@@ -640,18 +599,15 @@ const handleFeedbackSubmit = async () => {
         </div>
       )}
 
-      {/* Modal for user waiting for confirmation */}
       {isWaitingForOther && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-70 flex items-center justify-center p-4">
-          <div className="bg-slate-800 p-6 rounded-lg max-w-md w-full text-white">
-            <h2 className="text-lg font-bold mb-4">Request Sent</h2>
-            <p className="mb-4">
-              Waiting for {otherUser?.name || "the other user"} to confirm...
-            </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 bg-opacity-50 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 border-t-4 border-t-blue-700 bg-white p-6 text-slate-800 shadow-xl">
+            <h2 className="mb-4 text-xl font-bold text-slate-900">Request Sent</h2>
+            <p className="mb-4">Waiting for {otherUser?.name || "the other user"} to confirm...</p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={handleCancelEnd}
-                className="px-4 py-2 rounded bg-gray-500 hover:bg-gray-400 text-white"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Cancel Request
               </button>
@@ -660,32 +616,24 @@ const handleFeedbackSubmit = async () => {
         </div>
       )}
 
-      {/* Preview Modal */}
       {preview.open && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center p-4">
-          <div className="bg-slate-900 rounded p-3 max-w-3xl w-full">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 bg-opacity-60 p-4">
+          <div className="w-full max-w-3xl rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
             <button
               onClick={() => setPreview({ open: false, type: "", url: "" })}
-              className="text-white float-right"
+              aria-label="Close preview"
+              className="mb-3 ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
             >
-              X
+              <X aria-hidden="true" className="h-5 w-5" />
             </button>
             {preview.type === "image" && (
-              <img
-                src={preview.url}
-                alt="preview"
-                className="mx-auto max-h-[80vh]"
-              />
+              <img src={preview.url} alt="preview" className="mx-auto max-h-96 max-w-full object-contain" />
             )}
             {preview.type === "pdf" && (
-              <iframe src={preview.url} className="w-full h-[80vh]" />
+              <iframe src={preview.url} className="h-96 w-full rounded-lg border border-slate-200" title="preview-pdf" />
             )}
-            {preview.type === "audio" && (
-              <audio controls src={preview.url} className="w-full" />
-            )}
-            {preview.type === "file" && (
-              <p className="text-white">{preview.url}</p>
-            )}
+            {preview.type === "audio" && <audio controls src={preview.url} className="w-full" />}
+            {preview.type === "file" && <p className="break-all text-sm text-slate-700">{preview.url}</p>}
           </div>
         </div>
       )}
