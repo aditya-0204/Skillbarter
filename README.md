@@ -49,7 +49,6 @@ SkillSwap is a **student-focused skill exchange platform** where users can learn
   ![alt text](image-1.png)
   ![alt text](image-2.png)
 
-
 ##⚙️ **Installation & Setup**
 ```bash
 git clone https://github.com/aditya-0204/Skillbarter.git
